@@ -42,36 +42,36 @@ class _LibraryScreenState extends State<LibraryScreen>
   /// Simulación de playlists
   final _djRecommendations = const [
     {
-      "title": "Electronic Sunset",
+      "title": "Hunting soul",
       "cover":
-          "https://i.scdn.co/image/ab67616d0000b273e59f65e3c9131d123456aaaa"
+          "assets/images/Hunting.jpg"
     },
     {
-      "title": "Deep House Mix",
+      "title": "Ruined King",
       "cover":
-          "https://i.scdn.co/image/ab67616d0000b2739f39e8b3dff67aa987654bbb"
+          "assets/images/Ruined.jpg"
     },
   ];
 
   final _friendsPlaylists = const [
     {
-      "title": "Rock Classics",
+      "title": "I Believe",
       "cover":
-          "https://i.scdn.co/image/ab67616d0000b27311223344aabbccddeeff0011"
+          "assets/images/UFO.jpg"
     },
     {
       "title": "Indie Dreams",
       "cover":
-          "https://i.scdn.co/image/ab67616d0000b27399887766aabbccddeeff2233"
+          "assets/images/Indie.jpg"
     },
   ];
 
   final _myPlaylists = const [
     {"title": "Roll a d20", "cover": "assets/images/Dungeons.jpg"},
     {
-      "title": "Workout",
+      "title": "Good Vibes",
       "cover":
-          "https://i.scdn.co/image/ab67616d0000b273f62a7e2c97d11af987654321"
+          "assets/images/Good.jpg"
     },
     {
       "title": "Jazz Nights",
@@ -81,11 +81,11 @@ class _LibraryScreenState extends State<LibraryScreen>
   ];
 
   final _recommendedPlaylists = const [
-    {"title": "Lofi", "cover": "assets/images/Kamui.jpg"},
+    {"title": "Lofi", "cover": "assets/images/Lofi.jpg"},
     {
-      "title": "Workout",
+      "title": "Study",
       "cover":
-          "https://i.scdn.co/image/ab67616d0000b273f62a7e2c97d11af987654321"
+          "assets/images/Study.jpg"
     },
     {
       "title": "Jazz Nights",
@@ -327,3 +327,4 @@ class _PlaylistSection extends StatelessWidget {
     );
   }
 }
+
