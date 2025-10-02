@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+//import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:melodymuse/pages/complete_profile_page.dart';
@@ -68,9 +68,12 @@ class _FinalDetailsPageState extends State<FinalDetailsPage> {
 
     setState(() => saving = true);
 
-    // 🔹 Subir imagen a Firebase Storage si existe
+    // 🔹 Guardamos ruta local de la imagen (en vez de Firebase Storage por ahora)
     String? imageUrl;
     if (_profileImage != null) {
+      imageUrl = _profileImage!.path; // ✅ Guardamos la ruta local
+      /*
+      // 🚧 Código para cuando tengas configurado Firebase Storage:
       final ref = FirebaseStorage.instance
           .ref()
           .child("profile_pics")
@@ -78,6 +81,7 @@ class _FinalDetailsPageState extends State<FinalDetailsPage> {
 
       await ref.putFile(_profileImage!);
       imageUrl = await ref.getDownloadURL();
+      */
     }
 
     final data = {
