@@ -6,7 +6,6 @@ import 'package:melodymuse/components/navbar.dart';
 import 'package:melodymuse/components/song_reproductor.dart';
 import 'package:melodymuse/components/shortcuts_container.dart';
 import 'package:melodymuse/pages/captain-longbook.dart';
-import 'package:melodymuse/pages/genre_selector.dart';
 import 'package:melodymuse/pages/library_screen.dart';
 import 'package:melodymuse/pages/profile.dart';
 import 'package:melodymuse/pages/social_vinyl.dart';
@@ -254,7 +253,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const GenreSelectorPage()),
+                MaterialPageRoute(builder: (_) => const SoulSyncTerminal()),
               );
             },
           ),

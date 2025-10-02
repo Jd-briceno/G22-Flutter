@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:heroicons/heroicons.dart';
+import 'package:feather_icons/feather_icons.dart';
 import '../models/track_model.dart';
 
 class TrackDetailScreen extends StatefulWidget {
@@ -26,31 +27,48 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
   void initState() {
     super.initState();
     _currentIndex = widget.currentIndex;
-    _initTrack();
+
+    // ✅ Creamos un solo controller
+    _progressController = AnimationController(vsync: this);
+
+    _progressController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _playNextTrack();
+      }
+    });
+
+    _loadCurrentTrack();
   }
 
-  void _initTrack() {
+  void _loadCurrentTrack() {
     final durationMs = widget.tracks[_currentIndex].durationMs;
     final trackDuration =
         Duration(milliseconds: durationMs > 0 ? durationMs : 30000);
 
-    _progressController = AnimationController(
-      vsync: this,
-      duration: trackDuration,
-    )
-      ..forward()
-      ..addStatusListener((status) {
-        if (status == AnimationStatus.completed) {
-          _playNextTrack();
-        }
-      });
+    // ✅ Solo actualizamos duración y reiniciamos
+    _progressController.duration = trackDuration;
+    _progressController.reset();
+    _progressController.forward();
   }
 
   void _playNextTrack() {
     setState(() {
       _currentIndex = (_currentIndex + 1) % widget.tracks.length;
-      _progressController.dispose();
-      _initTrack();
+      _loadCurrentTrack();
+    });
+  }
+
+  void _playPrevTrack() {
+    final currentProgress = _progressController.value;
+
+    setState(() {
+      if (currentProgress > 0.1) {
+        _loadCurrentTrack(); // reinicia la misma canción
+      } else {
+        _currentIndex =
+            (_currentIndex - 1 + widget.tracks.length) % widget.tracks.length;
+        _loadCurrentTrack(); // carga la anterior
+      }
     });
   }
 
@@ -74,10 +92,9 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
     final nextTrack = widget.tracks[nextIndex];
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Color(0XFF010B19),
       body: Stack(
         children: [
-          /// 📸 Fondo con portada
           if (track.albumArt.isNotEmpty)
             Positioned(
               top: 0,
@@ -85,7 +102,7 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
               right: 0,
               height: screenHeight * 0.8,
               child: Opacity(
-                opacity: 0.4,
+                opacity: 0.3,
                 child: Image.network(
                   track.albumArt,
                   fit: BoxFit.cover,
@@ -93,7 +110,6 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
               ),
             ),
 
-          /// 🔴 Fondo curvado debajo
           Positioned(
             top: screenHeight * 0.50,
             left: 0,
@@ -105,7 +121,6 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
             ),
           ),
 
-          /// 🔝 Overlay
           SafeArea(
             child: Column(
               children: [
@@ -222,77 +237,138 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
                     final duration = Duration(
                         milliseconds:
                             track.durationMs > 0 ? track.durationMs : 30000);
-
                     final position = duration * _progressController.value;
 
-                    return Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        /// 🎶 Barra curva
-                        Center(
-                          child: CustomPaint(
-                            painter: _CurvedProgressPainter(
-                              progress: _progressController.value,
-                              backgroundColor: Colors.white24,
-                              progressColor: Colors.blue,
-                              strokeWidth: 4,
-                            ),
-                            child: const SizedBox(
-                              height: 100,
-                              width: 280,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-
-                        /// ❤️ Like
-                        IconButton(
-                          icon: Icon(
-                            isLiked ? Icons.favorite : Icons.favorite_border,
-                            color: Colors.white,
-                            size: 45,
-                          ),
-                          onPressed: () {
-                            setState(() => isLiked = !isLiked);
-                          },
-                        ),
-
-                        /// ⏱️ Tiempo actual / total (debajo del corazón)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 40),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                _formatDuration(position),
-                                style: const TextStyle(
-                                    color: Colors.white70, fontSize: 13),
+                    return SizedBox(
+                      height: 300,
+                      child: Stack(
+                        alignment: Alignment.topCenter,
+                        children: [
+                          Positioned(
+                            top: -30,
+                            child: CustomPaint(
+                              painter: _CurvedProgressPainter(
+                                progress: _progressController.value,
+                                backgroundColor: Color(0XFFB4B1B8),
+                                progressColor: Color(0XFF0095FC),
+                                strokeWidth: 4,
                               ),
-                              Text(
-                                _formatDuration(duration),
-                                style: const TextStyle(
-                                    color: Colors.white70, fontSize: 13),
+                              child: const SizedBox(
+                                height: 100,
+                                width: 280,
                               ),
-                            ],
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 15),
 
-                        /// 🔀 Shuffle y Repeat (más arriba)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 80),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: const [
-                              Icon(Icons.shuffle,
-                                  color: Colors.white, size: 30),
-                              Icon(Icons.repeat,
-                                  color: Colors.white, size: 30),
-                            ],
+                          Positioned.fill(
+                            top: 40,
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                /// ❤️ Like
+                                IconButton(
+                                  icon: Icon(
+                                    isLiked
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
+                                    color: Colors.white,
+                                    size: 45,
+                                  ),
+                                  onPressed: () {
+                                    setState(() => isLiked = !isLiked);
+                                  },
+                                ),
+
+                                /// ⏱️ Tiempo actual / total
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 40),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        _formatDuration(position),
+                                        style: const TextStyle(
+                                            color: Colors.white70, fontSize: 13,
+                                            fontFamily: "RobotoMono"),
+                                      ),
+                                      Text(
+                                        _formatDuration(duration),
+                                        style: const TextStyle(
+                                            color: Colors.white70, fontSize: 13,
+                                            fontFamily: "RobotoMono"),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                /// 🔀 Shuffle y Repeat
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 80),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: const [
+                                      Icon(Icons.shuffle,
+                                          color: Colors.white, size: 40),
+                                      Icon(Icons.repeat,
+                                          color: Colors.white, size: 40),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+
+                                /// 🎧 Controles
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    IconButton(
+                                      onPressed: _playPrevTrack,
+                                      icon: const HeroIcon(
+                                        HeroIcons.backward,
+                                        style: HeroIconStyle.outline,
+                                        color: Colors.white,
+                                        size: 50,
+                                      ),
+                                    ),
+
+                                    const SizedBox(width: 40),
+
+                                    PlayPauseButton(
+                                      isPlaying:
+                                          _progressController.isAnimating,
+                                      onTap: () {
+                                        setState(() {
+                                          if (_progressController.isAnimating) {
+                                            _progressController.stop();
+                                          } else {
+                                            _progressController.forward();
+                                          }
+                                        });
+                                      },
+                                    ),
+
+                                    const SizedBox(width: 40),
+
+                                    IconButton(
+                                      onPressed: _playNextTrack,
+                                      icon: const HeroIcon(
+                                        HeroIcons.forward,
+                                        style: HeroIconStyle.outline,
+                                        color: Colors.white,
+                                        size: 50,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 20),
+                              ],
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 20),
-                      ],
+                        ],
+                      ),
                     );
                   },
                 ),
@@ -367,30 +443,30 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
   }
 }
 
+/// 🔴 Fondo curvo rojo
 class _BottomCurvePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final fillPaint = Paint()
       ..style = PaintingStyle.fill
-      ..color = Colors.red;
+      ..color = Color(0XFF010B19);
 
     final strokePaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3
       ..color = Colors.white;
 
-    final path = Path();
-
-    path.moveTo(0, size.height);
-    path.lineTo(0, size.height * 0.3);
-    path.quadraticBezierTo(
-      size.width * 0.5,
-      0,
-      size.width,
-      size.height * 0.3,
-    );
-    path.lineTo(size.width, size.height);
-    path.close();
+    final path = Path()
+      ..moveTo(0, size.height)
+      ..lineTo(0, size.height * 0.3)
+      ..quadraticBezierTo(
+        size.width * 0.5,
+        0,
+        size.width,
+        size.height * 0.3,
+      )
+      ..lineTo(size.width, size.height)
+      ..close();
 
     canvas.drawPath(path, fillPaint);
     canvas.drawPath(path, strokePaint);
@@ -400,6 +476,7 @@ class _BottomCurvePainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
+/// 🎶 Barra curva de progreso
 class _CurvedProgressPainter extends CustomPainter {
   final double progress;
   final Color backgroundColor;
@@ -427,20 +504,17 @@ class _CurvedProgressPainter extends CustomPainter {
       ..strokeWidth = strokeWidth
       ..strokeCap = StrokeCap.round;
 
-    /// 🌙 Curva
     final path = Path()
-      ..moveTo(0, size.height * 0.7)
+      ..moveTo(0, size.height)
       ..quadraticBezierTo(
         size.width * 0.5,
         0,
         size.width,
-        size.height * 0.7,
+        size.height,
       );
 
-    // 🎨 Fondo gris
     canvas.drawPath(path, bgPaint);
 
-    // ✨ Progreso azul
     final metrics = path.computeMetrics().first;
     final extractPath = metrics.extractPath(0, metrics.length * progress);
     canvas.drawPath(extractPath, fgPaint);
@@ -449,4 +523,67 @@ class _CurvedProgressPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _CurvedProgressPainter oldDelegate) =>
       oldDelegate.progress != progress;
+}
+
+/// ⏯ Botón Play/Pause
+class PlayPauseButton extends StatelessWidget {
+  final bool isPlaying;
+  final VoidCallback onTap;
+
+  const PlayPauseButton({
+    super.key,
+    required this.isPlaying,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const double size = 100; // tamaño total del botón
+    const double innerRadius = (size / 2) - 15; // radio del círculo interno
+
+    return GestureDetector(
+      onTap: onTap,
+      child: CustomPaint(
+        painter: _CirclePainter(),
+        child: SizedBox(
+          width: size,
+          height: size,
+          child: Center(
+            child: Container(
+              width: innerRadius * 1.4, // ajustamos para que el icono quepa
+              height: innerRadius * 1.4,
+              alignment: Alignment.center,
+              child: Icon(
+                isPlaying ? FeatherIcons.pause : FeatherIcons.play,
+                size: innerRadius, // el ícono ocupa el círculo pequeño
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CirclePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final outer = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+
+    final inner = Paint()
+      ..color = Color(0XFFB4B1B8)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+
+    final center = Offset(size.width / 2, size.height / 2);
+    canvas.drawCircle(center, size.width / 2 - 5, outer);
+    canvas.drawCircle(center, size.width / 2 - 15, inner);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
