@@ -69,7 +69,9 @@ dependencies:
   #Country
   country_picker: ^2.0.25
   #Shared
-  shared_preferences: ^2.2.3 
+  shared_preferences: ^2.2.3
+  #Icons
+  feather_icons: ^1.2.0 
 
 
 
