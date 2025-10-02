@@ -1,438 +1,452 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:heroicons/heroicons.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import '../models/track_model.dart';
 
-class MusicDetailScreen extends StatefulWidget {
-  final String albumImage;
-  final String songTitle;
-  final String artistName;
+class TrackDetailScreen extends StatefulWidget {
+  final List<Track> tracks;
+  final int currentIndex;
 
-  const MusicDetailScreen({
+  const TrackDetailScreen({
     super.key,
-    required this.albumImage,
-    required this.songTitle,
-    required this.artistName,
+    required this.tracks,
+    required this.currentIndex,
   });
 
   @override
-  State<MusicDetailScreen> createState() => _MusicDetailScreenState();
+  State<TrackDetailScreen> createState() => _TrackDetailScreenState();
 }
 
-class _MusicDetailScreenState extends State<MusicDetailScreen> {
-  double progress = 30;
-  final double total = 238;
-  bool isPlaying = true;
-  bool isFavorite = false;
-  bool isShuffle = false;
-  bool isRepeat = false;
+class _TrackDetailScreenState extends State<TrackDetailScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _progressController;
+  late int _currentIndex;
+  bool isLiked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.currentIndex;
+    _initTrack();
+  }
+
+  void _initTrack() {
+    final durationMs = widget.tracks[_currentIndex].durationMs;
+    final trackDuration =
+        Duration(milliseconds: durationMs > 0 ? durationMs : 30000);
+
+    _progressController = AnimationController(
+      vsync: this,
+      duration: trackDuration,
+    )
+      ..forward()
+      ..addStatusListener((status) {
+        if (status == AnimationStatus.completed) {
+          _playNextTrack();
+        }
+      });
+  }
+
+  void _playNextTrack() {
+    setState(() {
+      _currentIndex = (_currentIndex + 1) % widget.tracks.length;
+      _progressController.dispose();
+      _initTrack();
+    });
+  }
+
+  @override
+  void dispose() {
+    _progressController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    final track = widget.tracks[_currentIndex];
+    final prevIndex =
+        (_currentIndex - 1 + widget.tracks.length) % widget.tracks.length;
+    final nextIndex = (_currentIndex + 1) % widget.tracks.length;
+
+    final prevTrack = widget.tracks[prevIndex];
+    final nextTrack = widget.tracks[nextIndex];
 
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          Positioned.fill(
-            child: Image.asset(widget.albumImage, fit: BoxFit.cover),
-          ),
-          Positioned.fill(
-            child: Container(color: Colors.black.withOpacity(0.55)),
-          ),
-
-          Column(
-            children: [
-              const SizedBox(height: 40),
-
-              // Barra superior
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const HeroIcon(
-                        HeroIcons.arrowLeftCircle,
-                        style: HeroIconStyle.outline,
-                        size: 50,
-                      ),
-                    ),
-                    const HeroIcon(
-                      HeroIcons.bars3,
-                      style: HeroIconStyle.outline,
-                      color: Colors.white,
-                      size: 50,
-                    ),
-                  ],
+          /// 📸 Fondo con portada
+          if (track.albumArt.isNotEmpty)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: screenHeight * 0.8,
+              child: Opacity(
+                opacity: 0.4,
+                child: Image.network(
+                  track.albumArt,
+                  fit: BoxFit.cover,
                 ),
               ),
+            ),
 
-              Transform.translate(
-                offset: const Offset(0, -40),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+          /// 🔴 Fondo curvado debajo
+          Positioned(
+            top: screenHeight * 0.50,
+            left: 0,
+            right: 0,
+            height: screenHeight * 0.65,
+            child: CustomPaint(
+              size: Size(screenWidth, screenHeight * 0.65),
+              painter: _BottomCurvePainter(),
+            ),
+          ),
+
+          /// 🔝 Overlay
+          SafeArea(
+            child: Column(
+              children: [
+                /// 🔙 Barra superior
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        widget.songTitle,
-                        style: GoogleFonts.encodeSansExpanded(
+                      IconButton(
+                        icon: const HeroIcon(
+                          HeroIcons.arrowLeftCircle,
+                          style: HeroIconStyle.outline,
                           color: Colors.white,
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold,
+                          size: 40,
+                        ),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              track.title,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontFamily: "EncodeSansExpanded",
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              track.artist,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontFamily: "RobotoMono",
+                                fontSize: 13,
+                                color: Colors.white70,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        widget.artistName,
-                        style: GoogleFonts.robotoMono(
-                          color: Colors.white70,
-                          fontSize: 16,
+                      IconButton(
+                        icon: const HeroIcon(
+                          HeroIcons.bars3,
+                          style: HeroIconStyle.outline,
+                          color: Colors.white,
+                          size: 35,
                         ),
+                        onPressed: () {},
                       ),
                     ],
                   ),
                 ),
-              ),
 
-              Expanded(
-                child: Stack(
-                  children: [
-                    Align(
-                      alignment: Alignment.topCenter,
-                      child: _SongsOnArc(
-                        configs: [
-                          SongArcConfig(
-                            title: "01. Ashes and Blood",
-                            angle: math.pi * -0.1,
-                            radiusOffset: -18,
-                          ),
-                          SongArcConfig(
-                            title: "02. Neon Rain",
-                            angle: math.pi * -0.01,
-                            radiusOffset: -30,
-                            verticalOffset: -60,
-                          ),
-                          SongArcConfig(
-                            title: "03. Vengeance",
-                            angle: math.pi * 1.1,
-                            radiusOffset: -280,
-                            verticalOffset: -170,
-                            rotationOffset: math.pi,
-                          ),
-                          SongArcConfig(
-                            title: "04. Jeopardy",
-                            angle: math.pi * 1.22,
-                            radiusOffset: -12,
-                          ),
-                          SongArcConfig(
-                            title: "05. Night Drive",
-                            angle: math.pi * 1.32,
-                            radiusOffset: -10,
-                          ),
-                        ],
-                        baseRadius: 160,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+                const SizedBox(height: 60),
 
-              SizedBox(
-                height: size.height * 0.45,
-                width: double.infinity,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    CustomPaint(
-                      size: Size(size.width, size.height * 0.45),
-                      painter: _BottomPanelPainter(),
-                    ),
-                    _CurvedSlider(
-                      progress: progress,
-                      total: total,
-                      flatten: 1.1,
-                      onChanged: (v) => setState(() => progress = v),
-                    ),
-                    Positioned(
-                      top: 85,
-                      left: size.width * 0.13,
-                      child: IconButton(
-                        onPressed: () => setState(() => isShuffle = !isShuffle),
-                        icon: SvgPicture.asset(
-                          'assets/images/shuffle.svg',
-                          width: 35,
-                          height: 35,
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      top: 25,
-                      child: IconButton(
-                        onPressed: () => setState(() => isFavorite = !isFavorite),
-                        icon: Icon(
-                          isFavorite ? Icons.favorite : Icons.favorite_border,
-                          color: Colors.white,
-                          size: 50,
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      top: 85,
-                      right: size.width * 0.13,
-                      child: IconButton(
-                        onPressed: () => setState(() => isRepeat = !isRepeat),
-                        icon: SvgPicture.asset(
-                          'assets/images/refresh.svg',
-                          width: 35,
-                          height: 35,
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 320,
-                      left: 170,
-                      child: Text(_format(progress),
-                          style: const TextStyle(color: Colors.white70)),
-                    ),
-                    Positioned(
-                      bottom: 320,
-                      right: 170,
-                      child: Text(_format(total),
-                          style: const TextStyle(color: Colors.white70)),
-                    ),
-                    Positioned(
-                      bottom: 320,
-                      right: 210,
-                      child: Text("/",
-                          style: const TextStyle(color: Colors.white70)),
-                    ),
-                    Positioned(
-                      bottom: 130,
-                      child: Row(
+                /// 🎵 Canciones centradas
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final curveStart = screenHeight * 0.20;
+
+                      return Stack(
                         children: [
-                          IconButton(
-                            iconSize: 70,
-                            color: Colors.white,
-                            icon: const HeroIcon(HeroIcons.backward),
-                            onPressed: () {},
-                          ),
-                          const SizedBox(width: 20),
-                          Container(
-                            padding: const EdgeInsets.all(15),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.black,
-                              border: Border.all(color: Colors.white, width: 2),
-                            ),
-                            child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Colors.black,
-                                border: Border.all(color: Colors.white, width: 2),
-                              ),
-                              child: IconButton(
-                                iconSize: 80,
-                                color: Colors.white,
-                                icon: HeroIcon(
-                                  isPlaying ? HeroIcons.pause : HeroIcons.play,
-                                  style: HeroIconStyle.outline,
-                                ),
-                                onPressed: () => setState(() => isPlaying = !isPlaying),
-                              ),
+                          Positioned(
+                            top: curveStart - 30,
+                            left: constraints.maxWidth / 2 - 30,
+                            child: _buildTrackInfo(
+                              number: _currentIndex + 1,
+                              track: track,
+                              isCenter: true,
+                              vertical: true,
                             ),
                           ),
-                          const SizedBox(width: 20),
-                          IconButton(
-                            iconSize: 70,
-                            color: Colors.white,
-                            icon: const HeroIcon(HeroIcons.forward),
-                            onPressed: () {},
+                          Positioned(
+                            top: curveStart - 5,
+                            left: 5,
+                            child: _buildTrackInfo(
+                              number: prevIndex + 1,
+                              track: prevTrack,
+                              isCenter: false,
+                              vertical: true,
+                            ),
+                          ),
+                          Positioned(
+                            top: curveStart - 5,
+                            right: 5,
+                            child: _buildTrackInfo(
+                              number: nextIndex + 1,
+                              track: nextTrack,
+                              isCenter: false,
+                              vertical: true,
+                            ),
                           ),
                         ],
-                      ),
-                    ),
-                  ],
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ],
+
+                /// 🎶 Controles dentro del bloque rojo
+                AnimatedBuilder(
+                  animation: _progressController,
+                  builder: (context, child) {
+                    final duration = Duration(
+                        milliseconds:
+                            track.durationMs > 0 ? track.durationMs : 30000);
+
+                    final position = duration * _progressController.value;
+
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        /// 🎶 Barra curva
+                        Center(
+                          child: CustomPaint(
+                            painter: _CurvedProgressPainter(
+                              progress: _progressController.value,
+                              backgroundColor: Colors.white24,
+                              progressColor: Colors.blue,
+                              strokeWidth: 4,
+                            ),
+                            child: const SizedBox(
+                              height: 100,
+                              width: 280,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+
+                        /// ❤️ Like
+                        IconButton(
+                          icon: Icon(
+                            isLiked ? Icons.favorite : Icons.favorite_border,
+                            color: Colors.white,
+                            size: 45,
+                          ),
+                          onPressed: () {
+                            setState(() => isLiked = !isLiked);
+                          },
+                        ),
+
+                        /// ⏱️ Tiempo actual / total (debajo del corazón)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 40),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                _formatDuration(position),
+                                style: const TextStyle(
+                                    color: Colors.white70, fontSize: 13),
+                              ),
+                              Text(
+                                _formatDuration(duration),
+                                style: const TextStyle(
+                                    color: Colors.white70, fontSize: 13),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 15),
+
+                        /// 🔀 Shuffle y Repeat (más arriba)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 80),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: const [
+                              Icon(Icons.shuffle,
+                                  color: Colors.white, size: 30),
+                              Icon(Icons.repeat,
+                                  color: Colors.white, size: 30),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  String _format(double s) {
-    final m = (s ~/ 60).toString().padLeft(2, '0');
-    final sec = (s % 60).toInt().toString().padLeft(2, '0');
-    return "$m:$sec";
+  Widget _buildTrackInfo({
+    required int number,
+    required Track track,
+    required bool isCenter,
+    required bool vertical,
+  }) {
+    final content = SizedBox(
+      height: 80,
+      width: 120,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment:
+            isCenter ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+        children: [
+          Text(
+            number.toString().padLeft(2, "0"),
+            style: TextStyle(
+              fontFamily: "EncodeSansExpanded",
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: isCenter ? Colors.white : Colors.white70,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            track.title,
+            textAlign: isCenter ? TextAlign.center : TextAlign.left,
+            style: TextStyle(
+              fontFamily: "EncodeSansExpanded",
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: isCenter ? Colors.white : Colors.white70,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            track.artist,
+            textAlign: isCenter ? TextAlign.center : TextAlign.left,
+            style: TextStyle(
+              fontFamily: "RobotoMono",
+              fontSize: 10,
+              color: isCenter ? Colors.white70 : Colors.white38,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+
+    return vertical ? RotatedBox(quarterTurns: 3, child: content) : content;
+  }
+
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, "0");
+    final minutes = twoDigits(duration.inMinutes.remainder(60));
+    final seconds = twoDigits(duration.inSeconds.remainder(60));
+    return "$minutes:$seconds";
   }
 }
 
-class _BottomPanelPainter extends CustomPainter {
+class _BottomCurvePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = const Color(0xFF010B19);
+    final fillPaint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = Colors.red;
+
+    final strokePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..color = Colors.white;
+
     final path = Path();
-    path.moveTo(0, 60);
-    path.quadraticBezierTo(size.width / 2, -120, size.width, 60);
+
+    path.moveTo(0, size.height);
+    path.lineTo(0, size.height * 0.3);
+    path.quadraticBezierTo(
+      size.width * 0.5,
+      0,
+      size.width,
+      size.height * 0.3,
+    );
     path.lineTo(size.width, size.height);
-    path.lineTo(0, size.height);
     path.close();
-    canvas.drawPath(path, paint);
+
+    canvas.drawPath(path, fillPaint);
+    canvas.drawPath(path, strokePaint);
   }
 
   @override
-  bool shouldRepaint(CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-class _CurvedSlider extends StatelessWidget {
+class _CurvedProgressPainter extends CustomPainter {
   final double progress;
-  final double total;
-  final double flatten;
-  final ValueChanged<double> onChanged;
+  final Color backgroundColor;
+  final Color progressColor;
+  final double strokeWidth;
 
-  const _CurvedSlider({
+  _CurvedProgressPainter({
     required this.progress,
-    required this.total,
-    this.flatten = 1.0,
-    required this.onChanged,
+    required this.backgroundColor,
+    required this.progressColor,
+    this.strokeWidth = 4,
   });
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onPanDown: (d) => _updateProgress(context, d.localPosition),
-      onPanUpdate: (d) => _updateProgress(context, d.localPosition),
-      child: CustomPaint(
-        size: const Size(double.infinity, 70),
-        painter: _ArcProgressPainter(progress / total, flatten: flatten),
-      ),
-    );
-  }
-
-  void _updateProgress(BuildContext context, Offset localPos) {
-    final box = context.findRenderObject() as RenderBox;
-    final size = box.size;
-
-    final center = Offset(size.width / 2, 20);
-    final dx = localPos.dx - center.dx;
-    final dy = localPos.dy - center.dy;
-
-    final angle = math.atan2(dy, dx);
-
-    if (angle <= 0 && angle >= -math.pi) {
-      final percent = 1 - (angle.abs() / math.pi);
-      onChanged(total * percent.clamp(0, 1));
-    }
-  }
-}
-
-class _ArcProgressPainter extends CustomPainter {
-  final double value;
-  final double flatten;
-
-  _ArcProgressPainter(this.value, {this.flatten = 1.0});
-
-  @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, 20);
-    final radius = 140.0;
-
-    final rect = Rect.fromCenter(
-      center: center,
-      width: radius * 3,
-      height: radius * 2.5 * flatten,
-    );
-
-    final bg = Paint()
-      ..color = Colors.white24
-      ..strokeWidth = 4
-      ..style = PaintingStyle.stroke;
-    final fg = Paint()
-      ..color = Colors.cyanAccent
-      ..strokeWidth = 4
+    final bgPaint = Paint()
+      ..color = backgroundColor
       ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
       ..strokeCap = StrokeCap.round;
 
-    canvas.drawArc(rect, 3.6, 2.25, false, bg);
-    canvas.drawArc(rect, 3.6, math.pi * value, false, fg);
+    final fgPaint = Paint()
+      ..color = progressColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    /// 🌙 Curva
+    final path = Path()
+      ..moveTo(0, size.height * 0.7)
+      ..quadraticBezierTo(
+        size.width * 0.5,
+        0,
+        size.width,
+        size.height * 0.7,
+      );
+
+    // 🎨 Fondo gris
+    canvas.drawPath(path, bgPaint);
+
+    // ✨ Progreso azul
+    final metrics = path.computeMetrics().first;
+    final extractPath = metrics.extractPath(0, metrics.length * progress);
+    canvas.drawPath(extractPath, fgPaint);
   }
 
   @override
-  bool shouldRepaint(_ArcProgressPainter old) =>
-      old.value != value || old.flatten != flatten;
-}
-
-class SongArcConfig {
-  final String title;
-  final double angle;
-  final double radiusOffset;
-  final double rotationOffset;
-  final double verticalOffset;
-
-  const SongArcConfig({
-    required this.title,
-    this.angle = math.pi,
-    this.radiusOffset = 0,
-    this.rotationOffset = 0,
-    this.verticalOffset = 0,
-  });
-}
-
-class _SongsOnArc extends StatelessWidget {
-  final List<SongArcConfig> configs;
-  final double baseRadius;
-
-  const _SongsOnArc({
-    required this.configs,
-    this.baseRadius = 160,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-
-    return IgnorePointer(
-      child: SizedBox(
-        height: baseRadius + 190,
-        child: ListView.builder(
-          scrollDirection: Axis.horizontal,
-          itemCount: configs.length,
-          padding: const EdgeInsets.symmetric(horizontal: 15),
-          itemBuilder: (context, index) {
-            final c = configs[index];
-            final r = baseRadius + c.radiusOffset;
-
-            final offsetX = r * math.cos(c.angle);
-            final offsetY = r * math.sin(c.angle) + c.verticalOffset;
-
-            return SizedBox(
-              width: screenWidth / 3,
-              child: Transform.translate(
-                offset: Offset(offsetX, -offsetY),
-                child: Transform.rotate(
-                  angle: c.angle - math.pi / 2 + c.rotationOffset,
-                  child: Text(
-                    c.title,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 20,
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
+  bool shouldRepaint(covariant _CurvedProgressPainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }

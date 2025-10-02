@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:melodymuse/pages/music_detail_screen.dart';
 import '../models/track_model.dart';
 import '../services/spotify_service.dart';
 import '../services/openai_service.dart';
@@ -48,7 +49,8 @@ class _PlaylistScreenState extends State<PlaylistScreen>
     "Punk": "Rebel Riffs",
     "Medieval": "Ancient Echoes",
     "Anisong":"TO BE HERO X",
-    "Rap":"Godzilla"
+    "Rap":"Godzilla",
+    "Musical":"Legendary"
   };
 
   final Map<String, String> _playlistCovers = {
@@ -64,6 +66,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
     "Medieval": "assets/images/Dungeons.jpg",
     "Rap": "assets/images/Rap.jpg",
     "Anisong": "assets/images/Anisong.jpg",
+    "Musical": "assets/images/Musical.jpg",
   };
 
   final Map<String, Color> _genreColors = {
@@ -78,7 +81,8 @@ class _PlaylistScreenState extends State<PlaylistScreen>
     "EDM": Colors.blueAccent,
     "Medieval": Colors.amber,
     "Rap":Colors.green,
-    "Anisong":Colors.lightBlueAccent
+    "Anisong":Colors.lightBlueAccent,
+    "Musical":Colors.amber,
   };
 
   final Map<String, String> _fallbackDescriptions = {
@@ -170,7 +174,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
     final equalizerColor = _genreColors[widget.genre] ?? Colors.redAccent;
 
     return Scaffold(
-      backgroundColor: Color(0XFF010B19),
+      backgroundColor: const Color(0XFF010B19),
       body: Stack(
         children: [
           if (coverImage.isNotEmpty)
@@ -191,10 +195,10 @@ class _PlaylistScreenState extends State<PlaylistScreen>
             child: IconButton(
               icon: const HeroIcon(
                 HeroIcons.arrowLeftCircle,
-                  style: HeroIconStyle.outline,
-                  color: Colors.white,
-                  size: 50,
-                ),
+                style: HeroIconStyle.outline,
+                color: Colors.white,
+                size: 50,
+              ),
               onPressed: () {
                 if (Navigator.of(context).canPop()) {
                   Navigator.of(context).pop();
@@ -299,6 +303,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                           ),
                           const SizedBox(height: 2),
 
+                          /// 🎵 LISTA DE CANCIONES
                           ListView.builder(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
@@ -313,10 +318,22 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                                 waveController: _waveController,
                                 equalizerColor: equalizerColor,
                                 onTap: () {
-                                  setState(() {
-                                    nowPlayingIndex =
-                                        (nowPlayingIndex == index) ? null : index;
-                                  });
+                                  if (isPlaying) {
+                                    // 🚀 Si ya está sonando, abrimos detalle
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) =>
+                                            TrackDetailScreen(tracks: tracks,
+                                            currentIndex: index,),
+                                      ),
+                                    );
+                                  } else {
+                                    // 🎵 Si no, la marcamos como actual
+                                    setState(() {
+                                      nowPlayingIndex = index;
+                                    });
+                                  }
                                 },
                               );
                             },

@@ -67,6 +67,7 @@ class _SocialVinylDemoState extends State<SocialVinylDemo> {
                     username: "Jay Walker",
                     title: "Lightning Ninja",
                     profileImage: "assets/images/Jay.jpg",
+                    subtitle: "Crew Members",
                   ),
                   const SizedBox(height: 12),
 

@@ -2,16 +2,18 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:orbitsounds/components/navbar.dart';
-import 'package:orbitsounds/components/song_reproductor.dart';
-import 'package:orbitsounds/components/shortcuts_container.dart';
-import 'package:orbitsounds/pages/library_screen.dart';
-import 'package:orbitsounds/pages/profile.dart';
-import 'package:orbitsounds/pages/soul_sync_terminal.dart';
+import 'package:melodymuse/components/navbar.dart';
+import 'package:melodymuse/components/song_reproductor.dart';
+import 'package:melodymuse/components/shortcuts_container.dart';
+import 'package:melodymuse/pages/captain-longbook.dart';
+import 'package:melodymuse/pages/genre_selector.dart';
+import 'package:melodymuse/pages/library_screen.dart';
+import 'package:melodymuse/pages/profile.dart';
+import 'package:melodymuse/pages/social_vinyl.dart';
+import 'package:melodymuse/pages/soul_sync_terminal.dart';
 import '../services/weather_service.dart';
 import '../models/weather_model.dart';
 import 'package:heroicons/heroicons.dart';
-import 'music_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -231,27 +233,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       songTitle: "Vengeance",
       artistName: "Coldrain",
       isPlaying: true,
-      onPlayPause: () {},
-      onNext: () {},
-      onPrevious: () {},
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => const MusicDetailScreen(
-              albumImage: "assets/images/Coldrain.jpg",
-              songTitle: "Vengeance",
-              artistName: "Coldrain",
-            ),
-          ),
-        );
+      onPlayPause: () {
+        debugPrint("Play/Pause presionado");
+      },
+      onNext: () {
+        debugPrint("Siguiente canción");
+      },
+      onPrevious: () {
+        debugPrint("Canción anterior");
       },
     );
   }
 
-
-
-  Widget _buildShortcuts(BuildContext context) {
+    Widget _buildShortcuts(BuildContext context) {
       return ShortcutsContainer(
         shortcuts: [
           ShortcutItem(
@@ -260,7 +254,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const SoulSyncTerminal()),
+                MaterialPageRoute(builder: (_) => const GenreSelectorPage()),
               );
             },
           ),
@@ -278,14 +272,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             icon: HeroIcons.clipboardDocumentList,
             label: "Captain’s Log",
             onTap: () {
-              Navigator.of(context).popUntil((route) => route.isFirst);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const Longbook()),
+              );
             },
           ),
           ShortcutItem(
             icon: HeroIcons.users,
             label: "Crew Members",
             onTap: () {
-              Navigator.of(context).popUntil((route) => route.isFirst);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SocialVinylDemo()),
+              );
             },
           ),
           ShortcutItem(

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:orbitsounds/components/backstage_card.dart';
-import 'package:orbitsounds/components/mini_song_reproductor.dart';
-import 'package:orbitsounds/components/navbar.dart';
+import 'package:melodymuse/components/backstage_card.dart';
+import 'package:melodymuse/components/mini_song_reproductor.dart';
+import 'package:melodymuse/components/navbar.dart';
 import 'package:heroicons/heroicons.dart';
 
 class ProfileBackstagePage extends StatelessWidget {
@@ -24,6 +24,7 @@ class ProfileBackstagePage extends StatelessWidget {
                 const Navbar(
                   username: "Jay Walker",
                   title: "Lightning Ninja",
+                  subtitle: "Command Profile",
                   profileWidget: HeroIcon(
                     HeroIcons.cog,
                     style: HeroIconStyle.outline,

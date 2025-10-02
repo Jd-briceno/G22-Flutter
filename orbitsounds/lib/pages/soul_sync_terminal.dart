@@ -1,14 +1,16 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:orbitsounds/components/navbar.dart';
-import 'package:orbitsounds/pages/celestial_signal.dart';
+import 'package:melodymuse/components/navbar.dart';
+import 'package:melodymuse/pages/celestial_signal.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class SoulSyncTerminal extends StatefulWidget {
-  const SoulSyncTerminal({super.key});
+  const SoulSyncTerminal({Key? key}) : super(key: key);
 
   @override
   State<SoulSyncTerminal> createState() => _SoulSyncTerminal();
 }
+
 // 📍 Frases poéticas para cada emoción
 const Map<String, String> emotionPhrases = {
   // Slider
@@ -44,18 +46,17 @@ const Map<String, Color> knobEmotionColors = {
 };
 
 // 📍 Colores exclusivos de la Perilla 2
-  const Map<String, Color> knob2EmotionColors = {
-    "Love": Color(0xFFB53E8E),          
-    "Embarrassment": Color(0xFFB53F5F), 
-    "Boredom": Color(0xFFA08888),      
-  };
-
+const Map<String, Color> knob2EmotionColors = {
+  "Love": Color(0xFFB53E8E),
+  "Embarrassment": Color(0xFFB53F5F),
+  "Boredom": Color(0xFFA08888),
+};
 
 class _SoulSyncTerminal extends State<SoulSyncTerminal>
     with SingleTickerProviderStateMixin {
   double _thumbY = (21.2913 + 571.797 - 68.4299) * 0.758;
   String? _selectedEmotion;
-  final List<String> _selectedEmotions = []; // 📍 Registro de emociones únicas
+  List<String> _selectedEmotions = []; // 📍 Registro de emociones únicas
   late AnimationController _controller;
   late Animation<double> _thumbAnimation;
 
@@ -64,6 +65,48 @@ class _SoulSyncTerminal extends State<SoulSyncTerminal>
   static const railBottom = railTop + railHeight;
 
   final double scale = 0.758;
+
+  /// Guarda UNA emoción (documento por emoción)
+  Future<void> _saveEmotionToFirestore(String emotion, String source) async {
+    try {
+      await FirebaseFirestore.instance.collection("emotions").add({
+        "emotion": emotion,
+        "source": source,
+        "timestamp": FieldValue.serverTimestamp(),
+        "userId": "guest", // aquí reemplaza si usas Firebase Auth
+      });
+
+      print("✅ Emoción guardada en Firestore: $emotion ($source)");
+    } catch (e) {
+      print("❌ Error al guardar emoción: $e");
+    }
+  }
+
+  /// Guarda la lista de emociones seleccionadas (botón Ready to Ship?)
+  Future<void> _saveEmotionsToFirestore() async {
+    if (_selectedEmotions.isEmpty) {
+      print("⚠️ No hay emociones para enviar.");
+      return;
+    }
+
+    try {
+      await FirebaseFirestore.instance.collection("emotions_collections").add({
+        "emotions": _selectedEmotions,
+        "timestamp": FieldValue.serverTimestamp(),
+        "userId": "guest",
+      });
+      print("✅ Lista de emociones guardada: $_selectedEmotions");
+    } catch (e) {
+      print("❌ Error al guardar lista de emociones: $e");
+    }
+  }
+
+  // Manejo centralizado: añade a historial y guarda en Firestore (padre)
+  void _handleEmotionSelection(String emotion, String source) {
+    if (emotion.isEmpty) return;
+    _setSelectedEmotion(emotion);
+    _saveEmotionToFirestore(emotion, source);
+  }
 
   // ========================================================
   // 📍 Al actualizar emoción → agregamos a la lista si no existe
@@ -80,7 +123,6 @@ class _SoulSyncTerminal extends State<SoulSyncTerminal>
     print("✅ Emoción actual: $_selectedEmotion");
     print("📜 Historial: $_selectedEmotions");
   }
-
 
   @override
   void initState() {
@@ -101,15 +143,37 @@ class _SoulSyncTerminal extends State<SoulSyncTerminal>
     final clamped =
         localY.clamp(railTop * scale, (railBottom - 68.4299) * scale);
 
+    // calculamos la emoción resultante
+    final String? newEmotion;
+    {
+      final double savedThumbY = _thumbY;
+      // temporalmente actualizamos para calcular
+      final double tmpY = clamped;
+      final sectionHeight = (railHeight * scale) / 24;
+      final relativeIndex = ((railBottom * scale - tmpY - 68.4299 / 2) /
+              sectionHeight)
+          .clamp(0, 23)
+          .floor();
+
+      if (relativeIndex < 6) {
+        newEmotion = null;
+      } else if (relativeIndex < 12) {
+        newEmotion = "FEAR";
+      } else if (relativeIndex < 18) {
+        newEmotion = "SADNESS";
+      } else {
+        newEmotion = "JOY";
+      }
+    }
+
     setState(() {
       _thumbY = clamped;
-      _selectedEmotion = _calculateEmotion();
     });
 
-    if (_selectedEmotion != null) {
-      // 📍 Notificar al padre (igual que las perillas)
-      _setSelectedEmotion(_selectedEmotion);
-      print("🎚 Slider seleccionó: $_selectedEmotion");
+    // Si la emoción cambió, la manejamos (padre guarda en Firestore)
+    if (newEmotion != null && newEmotion != _selectedEmotion) {
+      _handleEmotionSelection(newEmotion, "slider");
+      print("🎚 Slider seleccionó: $newEmotion");
     }
   }
 
@@ -144,14 +208,11 @@ class _SoulSyncTerminal extends State<SoulSyncTerminal>
 
     _controller.forward(from: 0);
 
-    _selectedEmotion = emotion;
-
-    // 📍 Notificar al padre
-    _setSelectedEmotion(_selectedEmotion);
+    // Notificamos y guardamos
+    _handleEmotionSelection(emotion, "slider");
 
     print("🎚 Jumped to emotion: $emotion");
   }
-
 
   String? _calculateEmotion() {
     final sectionHeight = (railHeight * scale) / 24;
@@ -167,7 +228,7 @@ class _SoulSyncTerminal extends State<SoulSyncTerminal>
     return "JOY";
   }
 
-    @override
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0XFF010B19),
@@ -188,7 +249,7 @@ class _SoulSyncTerminal extends State<SoulSyncTerminal>
 
             // 📍 Texto debajo del Navbar
             const Text(
-              "Choose your vibe",
+              "How are you feeling today captain?",
               style: TextStyle(
                 fontFamily: "RobotoMono",
                 fontSize: 14,
@@ -237,7 +298,7 @@ class _SoulSyncTerminal extends State<SoulSyncTerminal>
                                                   size: 48 * scale),
                                             )
                                           : Image.asset(
-                                              "assets/images/${_selectedEmotion!.toLowerCase()}.jpg",
+                                              "assets/images/${_selectedEmotion!.toLowerCase()}.png",
                                               fit: BoxFit.cover,
                                               errorBuilder: (context, _, __) =>
                                                   Container(
@@ -289,69 +350,65 @@ class _SoulSyncTerminal extends State<SoulSyncTerminal>
 
                         const SizedBox(height: 5),
 
-// Rectángulo chico con emociones seleccionadas
-SizedBox(
-  width: 190 * scale,
-  height: 57 * scale,
-  child: Stack(
-    alignment: Alignment.center,
-    children: [
-      CustomPaint(
-        size: Size(190 * scale, 57 * scale),
-        painter: RectPainter(radius: 19.5),
-      ),
-      Padding(
-        padding: EdgeInsets.symmetric(horizontal: 6 * scale),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: _selectedEmotions.map((emotion) {
-              return GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _selectedEmotions.remove(emotion);
-                  });
-                  print("🗑 Eliminada: $emotion");
-                },
-                child: Container(
-                  width: 50 * scale,
-                  height: 50 * scale, // 👈 cuadrado fijo
-                  margin: EdgeInsets.symmetric(horizontal: 3 * scale),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(6 * scale),
-                    image: DecorationImage(
-                      image: AssetImage("assets/images/${emotion.toLowerCase()}.jpg"),
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-        ),
-      ),
-    ],
-  ),
-),
-
-
-
-
-
-                        const SizedBox(height: 10),
-
-                        // Perilla 1
-                        EmotionKnob(
-                          scale: scale,
-                          onEmotionSelected: _setSelectedEmotion,
+                        // Rectángulo chico con emociones seleccionadas
+                        SizedBox(
+                          width: 190 * scale,
+                          height: 57 * scale,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              CustomPaint(
+                                size: Size(190 * scale, 57 * scale),
+                                painter: RectPainter(radius: 19.5),
+                              ),
+                              Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 6 * scale),
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: Row(
+                                    children: _selectedEmotions.map((emotion) {
+                                      return GestureDetector(
+                                        onTap: () {
+                                          setState(() {
+                                            _selectedEmotions.remove(emotion);
+                                          });
+                                          print("🗑 Eliminada: $emotion");
+                                        },
+                                        child: Container(
+                                          width: 50 * scale,
+                                          height: 50 * scale, // 👈 cuadrado fijo
+                                          margin: EdgeInsets.symmetric(horizontal: 3 * scale),
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(6 * scale),
+                                            image: DecorationImage(
+                                              image: AssetImage("assets/images/${emotion.toLowerCase()}.png"),
+                                              fit: BoxFit.cover,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
 
                         const SizedBox(height: 10),
 
-                        // Perilla 2
+                        // Perilla 1 — el parent maneja guardado
+                        EmotionKnob(
+                          scale: scale,
+                          onEmotionSelected: (e) => _handleEmotionSelection(e, "knob1"),
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        // Perilla 2 — el parent maneja guardado
                         EmotionKnob2(
                           scale: scale,
-                          onEmotionSelected: _setSelectedEmotion,
+                          onEmotionSelected: (e) => _handleEmotionSelection(e, "knob2"),
                         ),
                       ],
                     ),
@@ -367,10 +424,8 @@ SizedBox(
                           offset: const Offset(-2, -35),
                           child: GestureDetector(
                             onVerticalDragUpdate: (details) {
-                              RenderBox box = context.findRenderObject()
-                                  as RenderBox;
-                              final local =
-                                  box.globalToLocal(details.globalPosition);
+                              RenderBox box = context.findRenderObject() as RenderBox;
+                              final local = box.globalToLocal(details.globalPosition);
                               _updateThumb(local.dy);
                             },
                             child: SizedBox(
@@ -382,7 +437,7 @@ SizedBox(
                                     painter: SvgPainter(
                                       thumbY: _thumbY,
                                       scale: scale,
-                                      selectedEmotion: _selectedEmotion, // 👈 aquí
+                                      selectedEmotion: _selectedEmotion,
                                     ),
                                     size: Size(220 * scale, 647 * scale),
                                   ),
@@ -390,8 +445,7 @@ SizedBox(
                                     left: 50 * scale,
                                     top: 437 * scale,
                                     child: GestureDetector(
-                                      onTap: () =>
-                                          _jumpToEmotion("FEAR"),
+                                      onTap: () => _jumpToEmotion("FEAR"),
                                       child: const Text(
                                         "FEAR",
                                         style: TextStyle(
@@ -406,8 +460,7 @@ SizedBox(
                                     left: 12 * scale,
                                     top: 289 * scale,
                                     child: GestureDetector(
-                                      onTap: () =>
-                                          _jumpToEmotion("SADNESS"),
+                                      onTap: () => _jumpToEmotion("SADNESS"),
                                       child: const Text(
                                         "SADNESS",
                                         style: TextStyle(
@@ -443,7 +496,8 @@ SizedBox(
                         Transform.translate(
                           offset: const Offset(-15, 0), // 👈 mueve el botón 15px a la izquierda
                           child: GestureDetector(
-                            onTap: () {
+                            onTap: () async {
+                              await _saveEmotionsToFirestore();
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(builder: (context) => const CelestialSignalPage()),
@@ -451,19 +505,19 @@ SizedBox(
                             },
                             child: SizedBox(
                               width: 191 * scale,
-                              height: 40 * scale, // 👈 antes 30 * scale → ahora más alto
+                              height: 40 * scale,
                               child: Stack(
                                 alignment: Alignment.center,
                                 children: [
                                   CustomPaint(
-                                    size: Size(191 * scale, 40 * scale), // 👈 altura ajustada
+                                    size: Size(191 * scale, 40 * scale),
                                     painter: ButtonPainter(),
                                   ),
                                   Text(
                                     "Ready to Ship?",
                                     style: TextStyle(
                                       fontFamily: "RobotoMono",
-                                      fontSize: 15, // opcional → puedes subirle 1px para balancear
+                                      fontSize: 15,
                                       color: Colors.white,
                                     ),
                                   ),
@@ -472,7 +526,6 @@ SizedBox(
                             ),
                           ),
                         ),
-
                       ],
                     ),
                   ],
@@ -485,7 +538,6 @@ SizedBox(
     );
   }
 }
-
 
 /// =================== RectPainter ===================
 /// Pinta un rectángulo con fill #010B19 y stroke #B4B1B8, adaptándose al tamaño dado.
@@ -530,7 +582,7 @@ class SvgPainter extends CustomPainter {
   final double scale;
   final String? selectedEmotion;
 
-  SvgPainter({required this.thumbY, required this.scale,this.selectedEmotion,});
+  SvgPainter({required this.thumbY, required this.scale, this.selectedEmotion});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -610,7 +662,7 @@ class SvgPainter extends CustomPainter {
     );
 
     final Color thumbColor =
-    sliderEmotionColors[selectedEmotion] ?? const Color(0xFFB4B1B8);
+        sliderEmotionColors[selectedEmotion] ?? const Color(0xFFB4B1B8);
     final thumbPaint = Paint()..color = thumbColor;
     final thumbStroke = Paint()
       ..color = const Color(0xFF010B19)
@@ -693,23 +745,22 @@ class SvgPainter extends CustomPainter {
         const Offset(146.852, 581.502),
       ];
 
-    @override
+  @override
   bool shouldRepaint(covariant SvgPainter oldDelegate) =>
       oldDelegate.thumbY != thumbY ||
       oldDelegate.scale != scale ||
       oldDelegate.selectedEmotion != selectedEmotion;
-
 }
 
-/// ========== PERILLA 2 (ANGER, ENVY, DISGUST, ANXIETY) ==========
+/// ========== PERILLA 1 (ANGER, ENVY, DISGUST, ANXIETY) ==========
 class EmotionKnob extends StatefulWidget {
   final double scale;
   final Function(String) onEmotionSelected; // 📍 callback
   const EmotionKnob({
-    super.key,
+    Key? key,
     required this.scale,
     required this.onEmotionSelected,
-  });
+  }) : super(key: key);
 
   @override
   State<EmotionKnob> createState() => _EmotionKnobState();
@@ -718,7 +769,7 @@ class EmotionKnob extends StatefulWidget {
 class _EmotionKnobState extends State<EmotionKnob>
     with SingleTickerProviderStateMixin {
   double _angle = pi / 2;
-  String? _selectedEmotion;  
+  String? _selectedEmotion;
   late AnimationController _controller;
   Animation<double>? _angleAnimation;
 
@@ -802,10 +853,12 @@ class _EmotionKnobState extends State<EmotionKnob>
   }
 
   void _onPanEnd() {
-    String? closest = _selectedEmotion;
+    if (_selectedEmotion == null) return;
+    String closest = _selectedEmotion!;
     double targetAngle = emotionAngles[closest]!;
     _animateToAngle(targetAngle);
     widget.onEmotionSelected(_selectedEmotion!);
+    // NO llamamos a _saveEmotionToFirestore aquí: el padre lo hará
   }
 
   void _onTapEmotion(String emotion) {
@@ -835,7 +888,7 @@ class _EmotionKnobState extends State<EmotionKnob>
               size: Size(size, size),
               painter: KnobPainter(
                 angle: _angle,
-                selectedEmotion: _selectedEmotion, // 👈 pasamos emoción
+                selectedEmotion: _selectedEmotion,
               ),
             ),
           ),
@@ -916,7 +969,7 @@ class KnobPainter extends CustomPainter {
 
     // === Círculo dinámico ===
     final Color knobColor =
-      knobEmotionColors[selectedEmotion] ?? const Color(0xFFB4B1B8);
+        knobEmotionColors[selectedEmotion] ?? const Color(0xFFB4B1B8);
     canvas.drawCircle(center, 55 * (size.width / 130),
         Paint()..color = knobColor);
 
@@ -937,12 +990,11 @@ class KnobPainter extends CustomPainter {
       oldDelegate.selectedEmotion != selectedEmotion;
 }
 
-
 /// ========== PERILLA 2 (LOVE, EMBARRASSMENT, BOREDOM) ==========
 class EmotionKnob2 extends StatefulWidget {
   final double scale;
   final Function(String) onEmotionSelected; // 📍 callback
-  const EmotionKnob2({super.key, required this.scale, required this.onEmotionSelected});
+  const EmotionKnob2({Key? key, required this.scale, required this.onEmotionSelected}) : super(key: key);
 
   @override
   State<EmotionKnob2> createState() => _EmotionKnob2State();
@@ -951,7 +1003,7 @@ class EmotionKnob2 extends StatefulWidget {
 class _EmotionKnob2State extends State<EmotionKnob2>
     with SingleTickerProviderStateMixin {
   double _angle = pi / 2; // empieza apuntando abajo
-  String _selectedEmotion = "none";
+  String? _selectedEmotion;
   late AnimationController _controller;
   Animation<double>? _angleAnimation;
 
@@ -1002,58 +1054,58 @@ class _EmotionKnob2State extends State<EmotionKnob2>
   }
 
   void _updateEmotionFromAngle() {
-  String closest = _selectedEmotion;
-  double minDiff = double.infinity;
+    String? closest = _selectedEmotion;
+    double minDiff = double.infinity;
 
-  emotionAngles.forEach((emotion, targetAngle) {
-    double diff = (targetAngle - _angle).abs();
-    if (diff > pi) diff = 2 * pi - diff;
-    if (diff < minDiff) {
-      minDiff = diff;
-      closest = emotion;
-    }
-  });
-
-  if (closest != _selectedEmotion) {
-    setState(() {
-      _selectedEmotion = closest;
+    emotionAngles.forEach((emotion, targetAngle) {
+      double diff = (targetAngle - _angle).abs();
+      if (diff > pi) diff = 2 * pi - diff;
+      if (diff < minDiff) {
+        minDiff = diff;
+        closest = emotion;
+      }
     });
-    widget.onEmotionSelected(_selectedEmotion); // ✅ se notifica al padre
-    print("💖 Perilla 2 seleccionó: $_selectedEmotion");
+
+    if (closest != _selectedEmotion) {
+      setState(() {
+        _selectedEmotion = closest;
+      });
+      widget.onEmotionSelected(_selectedEmotion!); // ✅ se notifica al padre
+      print("💖 Perilla 2 seleccionó: $_selectedEmotion");
+    }
   }
-}
 
-void _onPanUpdate(DragUpdateDetails details, Offset center) {
-  final local = details.localPosition;
-  final dx = local.dx - center.dx;
-  final dy = local.dy - center.dy;
-  final angle = atan2(dy, dx);
+  void _onPanUpdate(DragUpdateDetails details, Offset center) {
+    final local = details.localPosition;
+    final dx = local.dx - center.dx;
+    final dy = local.dy - center.dy;
+    final angle = atan2(dy, dx);
 
-  setState(() {
-    _angle = angle;
-  });
+    setState(() {
+      _angle = angle;
+    });
 
-  _updateEmotionFromAngle();
-}
+    _updateEmotionFromAngle();
+  }
 
-void _onPanEnd() {
-  String closest = _selectedEmotion;
-  double targetAngle = emotionAngles[closest]!;
-  _animateToAngle(targetAngle);
+  void _onPanEnd() {
+    if (_selectedEmotion == null) return;
+    String closest = _selectedEmotion!;
+    double targetAngle = emotionAngles[closest]!;
+    _animateToAngle(targetAngle);
 
-  widget.onEmotionSelected(_selectedEmotion); // 📍 añadir aquí
-}
+    widget.onEmotionSelected(_selectedEmotion!); // el padre guardará
+  }
 
-void _onTapEmotion(String emotion) {
-  _animateToAngle(emotionAngles[emotion]!);
-  setState(() {
-    _selectedEmotion = emotion;
-  });
+  void _onTapEmotion(String emotion) {
+    _animateToAngle(emotionAngles[emotion]!);
+    setState(() {
+      _selectedEmotion = emotion;
+    });
 
-  widget.onEmotionSelected(_selectedEmotion); // 📍 añadir aquí
-  print("💖 Perilla 2 seleccionó: $emotion");
-}
-
+    widget.onEmotionSelected(_selectedEmotion!); // el padre guardará
+    print("💖 Perilla 2 seleccionó: $emotion");
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1074,7 +1126,7 @@ void _onTapEmotion(String emotion) {
               painter: Knob2Painter(
                 angle: _angle,
                 scale: widget.scale,
-                selectedEmotion: _selectedEmotion, // 👈 aquí
+                selectedEmotion: _selectedEmotion,
               ),
             ),
           ),

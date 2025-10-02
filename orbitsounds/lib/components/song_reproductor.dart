@@ -10,7 +10,6 @@ class SongReproductor extends StatelessWidget {
   final VoidCallback onPlayPause;
   final VoidCallback onNext;
   final VoidCallback onPrevious;
-  final VoidCallback? onTap;
 
   const SongReproductor({
     super.key,
@@ -21,7 +20,6 @@ class SongReproductor extends StatelessWidget {
     required this.onPlayPause,
     required this.onNext,
     required this.onPrevious,
-    this.onTap,
   });
 
   ImageProvider _imageProviderFor(String path) {
@@ -31,97 +29,100 @@ class SongReproductor extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(30.5),
-      onTap: onTap,
-      child: Container(
-        width: 400,
-        height: 62,
-        decoration: BoxDecoration(
-          color: const Color(0xFF010B19),
-          borderRadius: BorderRadius.circular(30.5),
-          border: Border.all(color: const Color(0xFFB4B1B8)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              margin: const EdgeInsets.all(6),
-              width: 82,
-              height: 50,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(25),
-                image: DecorationImage(
-                  image: _imageProviderFor(albumImage),
-                  fit: BoxFit.cover,
-                ),
+    return Container(
+      width: 400,
+      height: 62,
+      decoration: BoxDecoration(
+        color: const Color(0xFF010B19),
+        borderRadius: BorderRadius.circular(30.5),
+        border: Border.all(color: const Color(0xFFB4B1B8)),
+      ),
+      child: Row(
+        children: [
+          // ══════════ Imagen del álbum ══════════
+          Container(
+            margin: const EdgeInsets.all(6),
+            width: 82,
+            height: 50,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(25),
+              image: DecorationImage(
+                image: _imageProviderFor(albumImage),
+                fit: BoxFit.cover,
               ),
             ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      songTitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.encodeSansExpanded(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
+          ),
+
+          // ══════════ Nombre y artista ══════════
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Nombre de la canción
+                  Text(
+                    songTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.encodeSansExpanded(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      artistName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.robotoMono(
-                        fontSize: 12,
-                        color: Colors.white70,
-                      ),
+                  ),
+                  const SizedBox(height: 2),
+                  // Nombre del artista
+                  Text(
+                    artistName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.robotoMono(
+                      fontSize: 12,
+                      color: Colors.white70,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  onPressed: onPrevious,
-                  icon: const HeroIcon(
-                    HeroIcons.backward,
-                    style: HeroIconStyle.outline,
-                    color: Color(0XFFE9E8EE),
-                    size: 35,
-                  ),
+          ),
+
+          // ══════════ Controles ══════════
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                onPressed: onPrevious,
+                icon: const HeroIcon(
+                  HeroIcons.backward,
+                  style: HeroIconStyle.outline,
+                  color: Color(0XFFE9E8EE),
+                  size: 35,
                 ),
-                IconButton(
-                  onPressed: onPlayPause,
-                  icon: HeroIcon(
-                    isPlaying ? HeroIcons.pause : HeroIcons.play,
-                    style: HeroIconStyle.outline,
-                    color: Color(0XFFE9E8EE),
-                    size: 40,
-                  ),
+              ),
+              IconButton(
+                onPressed: onPlayPause,
+                icon: HeroIcon(
+                  isPlaying ? HeroIcons.pause : HeroIcons.play,
+                  style: HeroIconStyle.outline,
+                  color:Color(0XFFE9E8EE),
+                  size: 40,
                 ),
-                IconButton(
-                  onPressed: onNext,
-                  icon: const HeroIcon(
-                    HeroIcons.forward,
-                    style: HeroIconStyle.outline,
-                    color: Color(0XFFE9E8EE),
-                    size: 35,
-                  ),
+              ),
+              IconButton(
+                onPressed: onNext,
+                icon: const HeroIcon(
+                  HeroIcons.forward,
+                  style: HeroIconStyle.outline,
+                  color: Color(0XFFE9E8EE),
+                  size: 35,
                 ),
-                const SizedBox(width: 4),
-              ],
-            ),
-          ],
-        ),
+              ),
+              const SizedBox(width: 4),
+            ],
+          ),
+        ],
       ),
     );
   }
