@@ -1,8 +1,8 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:orbitsounds/components/navbar.dart';
+import 'package:melodymuse/components/navbar.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:orbitsounds/pages/genre_selector.dart';
+import 'package:melodymuse/pages/genre_selector.dart';
 
 
 // ───────────────────────────────────────────────

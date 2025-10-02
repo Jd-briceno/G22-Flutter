@@ -42,7 +42,8 @@ class SpotifyService {
     "j-rock": ["J-Rock", "Japanese Rock", "邦楽ロック"],
     "k-pop": ["K-Pop", "케이팝", "Korean Pop"],
     "medieval":["Medieval","Celtic","Dungeons and dragons"],
-    "anisong":["Anisong","Anime","Demon Slayer"]
+    "anisong":["Anisong","Anime","Demon Slayer"],
+    "musical":["Hamilton","Epic","Musical"]
   };
 
   /// 🔍 Obtener playlists de un género (directo con search)

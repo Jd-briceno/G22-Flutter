@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:orbitsounds/pages/home_screen.dart';
-import 'package:orbitsounds/pages/playlist_screen.dart';
+import 'package:melodymuse/pages/home_screen.dart';
+import 'package:melodymuse/pages/playlist_screen.dart';
 import 'package:heroicons/heroicons.dart';
 import 'dart:io'; // 👈 necesario para exit(0)
 import 'package:flutter/services.dart'; // 👈 necesario para SystemNavigator.pop()
@@ -36,6 +36,7 @@ class Genres {
   static const String rap = "Rap";
   static const String medieval = "Medieval";
   static const String anisong = "Anisong";
+  static const String musical = "Musical";
 }
 
 class GenreSelectorPage extends StatefulWidget {
@@ -145,6 +146,14 @@ class _GenreSelectorPageState extends State<GenreSelectorPage> {
       "description": "High-energy beats for the dancefloor — EDM is the pulse of festivals worldwide.",
       "subgenres": ["House", "Techno", "Dubstep"],
       "fontFamily": "EDM"
+    },
+    {
+      "name": Genres.musical,
+      "planet": "assets/images/Musical.png",
+      "colors": [Color.fromRGBO(1, 29, 107, 0.8), Color.fromRGBO(255,191,0, 0.4)],
+      "description": "A glanze to the past.",
+      "subgenres": ["Musical", "Hamilton", "Epic"],
+      "fontFamily": "Musical"
     },
   ];
 

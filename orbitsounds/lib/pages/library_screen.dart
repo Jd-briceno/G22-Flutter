@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:orbitsounds/components/vinyl_cover.dart';
+import 'package:melodymuse/components/vinyl_cover.dart';
 import '../components/search_bar.dart';
 import '../components/navbar.dart';
 import '../models/track_model.dart';
@@ -327,4 +327,3 @@ class _PlaylistSection extends StatelessWidget {
     );
   }
 }
-

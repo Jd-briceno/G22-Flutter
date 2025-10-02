@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "84892838356",
+    "project_id": "orbitsounds-ef026",
+    "storage_bucket": "orbitsounds-ef026.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:84892838356:android:27f4d9f6410f3d3b904e41",
+        "android_client_info": {
+          "package_name": "com.example.melodymuse"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "84892838356-jp932m8tgv9jku6qv1f1ee86e7d8hhpl.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.melodymuse",
+            "certificate_hash": "377d6c3b88053209e3f593c04b5ca377bfe95ae7"
+          }
+        },
+        {
+          "client_id": "84892838356-llajc9r8a71a71fqmdstd7hie85o0hpi.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBdN0V319wXTyNGZDD753WWWrkt_AvH-jY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "84892838356-llajc9r8a71a71fqmdstd7hie85o0hpi.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "84892838356-2858rsiau5chjc53uaia020afrbiqqmv.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.melodymuse"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

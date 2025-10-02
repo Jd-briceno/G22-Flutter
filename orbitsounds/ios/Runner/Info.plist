@@ -50,5 +50,14 @@
 	<string>Necesitamos acceder a tu ubicación para mostrarte el clima actual.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>La aplicación requiere tu ubicación para mostrarte información del clima en tiempo real.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Necesitamos usar Bluetooth para encontrar amigos cercanos.</string>
+	<!--Permisos Almacenamiento-->
+	<key>NSCameraUsageDescription</key>
+	<string>This app needs access to your camera to take profile photos.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs access to your photo library to select profile photos.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>This app needs permission to save profile photos to your library.</string>
 </dict>
 </plist>
