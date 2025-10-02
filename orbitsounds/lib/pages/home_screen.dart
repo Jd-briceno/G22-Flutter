@@ -11,6 +11,7 @@ import 'package:orbitsounds/pages/soul_sync_terminal.dart';
 import '../services/weather_service.dart';
 import '../models/weather_model.dart';
 import 'package:heroicons/heroicons.dart';
+import 'music_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -230,19 +231,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       songTitle: "Vengeance",
       artistName: "Coldrain",
       isPlaying: true,
-      onPlayPause: () {
-        debugPrint("Play/Pause presionado");
-      },
-      onNext: () {
-        debugPrint("Siguiente canción");
-      },
-      onPrevious: () {
-        debugPrint("Canción anterior");
+      onPlayPause: () {},
+      onNext: () {},
+      onPrevious: () {},
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => const MusicDetailScreen(
+              albumImage: "assets/images/Coldrain.jpg",
+              songTitle: "Vengeance",
+              artistName: "Coldrain",
+            ),
+          ),
+        );
       },
     );
   }
 
-    Widget _buildShortcuts(BuildContext context) {
+
+
+  Widget _buildShortcuts(BuildContext context) {
       return ShortcutsContainer(
         shortcuts: [
           ShortcutItem(
