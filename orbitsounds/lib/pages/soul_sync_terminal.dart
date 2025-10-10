@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:melodymuse/components/navbar.dart';
 import 'package:melodymuse/pages/celestial_signal.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class SoulSyncTerminal extends StatefulWidget {
   const SoulSyncTerminal({Key? key}) : super(key: key);
@@ -66,6 +67,13 @@ class _SoulSyncTerminal extends State<SoulSyncTerminal>
 
   final double scale = 0.758;
 
+  //Usuario actual
+  String? _getCurrentUserId() {
+    final user = FirebaseAuth.instance.currentUser;
+    return user?.uid ?? "guest";
+  }
+
+
   /// Guarda UNA emoción (documento por emoción)
   Future<void> _saveEmotionToFirestore(String emotion, String source) async {
     try {
@@ -100,6 +108,38 @@ class _SoulSyncTerminal extends State<SoulSyncTerminal>
       print("❌ Error al guardar lista de emociones: $e");
     }
   }
+
+  //Crear sesión
+  Future<String?> _createSessionOnExit() async {
+    if (_selectedEmotions.isEmpty) {
+      print("⚠️ No hay emociones para guardar en sesión.");
+      return null;
+    }
+
+    try {
+      final uid = _getCurrentUserId();
+      final sessionId = DateTime.now().millisecondsSinceEpoch.toString();
+
+      await FirebaseFirestore.instance
+          .collection("users")
+          .doc(uid)
+          .collection("sessions")
+          .doc(sessionId)
+          .set({
+        "sessionId": sessionId,
+        "userId": uid,
+        "emotions": _selectedEmotions,
+        "timestamp": FieldValue.serverTimestamp(),
+      });
+
+      print("✅ Sesión guardada en users/$uid/sessions/$sessionId");
+      return sessionId; // 👈 devolvemos el id
+    } catch (e) {
+      print("❌ Error al guardar sesión: $e");
+      return null;
+    }
+  }
+
 
   // Manejo centralizado: añade a historial y guarda en Firestore (padre)
   void _handleEmotionSelection(String emotion, String source) {
@@ -497,11 +537,16 @@ class _SoulSyncTerminal extends State<SoulSyncTerminal>
                           offset: const Offset(-15, 0), // 👈 mueve el botón 15px a la izquierda
                           child: GestureDetector(
                             onTap: () async {
-                              await _saveEmotionsToFirestore();
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => const CelestialSignalPage()),
-                              );
+                              await _saveEmotionsToFirestore(); 
+                              final sessionId = await _createSessionOnExit(); // 👈 lo capturamos
+                              if (sessionId != null) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => CelestialSignalPage(sessionId: sessionId), // 👈 lo pasamos
+                                  ),
+                                );
+                              }
                             },
                             child: SizedBox(
                               width: 191 * scale,

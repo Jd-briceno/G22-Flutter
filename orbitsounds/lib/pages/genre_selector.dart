@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:melodymuse/components/achivement_popup.dart';
 import 'package:melodymuse/pages/home_screen.dart';
 import 'package:melodymuse/pages/playlist_screen.dart';
 import 'package:heroicons/heroicons.dart';
 import 'dart:io'; // 👈 necesario para exit(0)
 import 'package:flutter/services.dart'; // 👈 necesario para SystemNavigator.pop()
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 void main() {
   runApp(const MyApp());
@@ -49,6 +52,46 @@ class GenreSelectorPage extends StatefulWidget {
 class _GenreSelectorPageState extends State<GenreSelectorPage> {
   late final PageController _pageController;
   int _currentPage = 0;
+
+  //Desbloquear logro
+  Future<void> unlockAchievement(BuildContext context, String genreName) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final achievementsRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('achievements');
+
+    // ⚡ Evita duplicados
+    final snapshot = await achievementsRef
+        .where('target', isEqualTo: genreName)
+        .limit(1)
+        .get();
+
+    if (snapshot.docs.isEmpty) {
+      final achievement = genreAchievements[genreName]!;
+
+      await achievementsRef.add({
+        'target': genreName,
+        'title': achievement["title"],
+        'icon': achievement["icon"],
+        'unlockedAt': FieldValue.serverTimestamp(),
+      });
+
+      // 🎖️ Mostrar popup y ESPERAR a que se cierre
+      await showDialog(
+        context: context,
+        barrierDismissible: true,
+        builder: (_) => AchievementPopup(
+          genre: genreName,
+          title: achievement["title"]!,
+          iconPath: achievement["icon"]!,
+        ),
+      );
+    }
+  }
+
 
   final List<Map<String, dynamic>> genres = [
     {
@@ -157,6 +200,24 @@ class _GenreSelectorPageState extends State<GenreSelectorPage> {
     },
   ];
 
+  /// 🎖️ Logros y títulos por género
+  final Map<String, Map<String, String>> genreAchievements = {
+    Genres.medieval: {"title": "Knight of Ballads", "icon": "assets/medals/medieval.png"},
+    Genres.punk: {"title": "Rebel of Noise", "icon": "assets/medals/punk.png"},
+    Genres.kpop: {"title": "Idol Dreamer", "icon": "assets/medals/kpop.png"},
+    Genres.jrock: {"title": "Samurai of Rock", "icon": "assets/medals/jrock.png"},
+    Genres.pop: {"title": "Chart Conqueror", "icon": "assets/medals/pop.png"},
+    Genres.rap: {"title": "Lyrical Warrior", "icon": "assets/medals/rap.png"},
+    Genres.jazz: {"title": "Smooth Maestro", "icon": "assets/medals/jazz.png"},
+    Genres.rock: {"title": "Lord of Guitars", "icon": "assets/medals/rock.png"},
+    Genres.classical: {"title": "Symphony Sage", "icon": "assets/medals/classical.png"},
+    Genres.metal: {"title": "Headbanging Berserker", "icon": "assets/medals/metal.png"},
+    Genres.anisong: {"title": "Otaku Hero", "icon": "assets/medals/anisong.png"},
+    Genres.edm: {"title": "Festival Summoner", "icon": "assets/medals/edm.png"},
+    Genres.musical: {"title": "Stage Performer", "icon": "assets/medals/musical.png"},
+  };
+
+
   @override
   void initState() {
     super.initState();
@@ -261,7 +322,8 @@ class _GenreSelectorPageState extends State<GenreSelectorPage> {
                         Column(
                           children: [
                             GestureDetector(
-                              onTap: () {
+                              onTap: () async {
+                                await unlockAchievement(context, genre["name"]); // 🎖️ Espera que el usuario cierre el popup
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
@@ -299,6 +361,7 @@ class _GenreSelectorPageState extends State<GenreSelectorPage> {
                                 ),
                               ),
                             ),
+
                             const SizedBox(height: 12),
                             Container(
                               width: double.infinity,
@@ -553,3 +616,4 @@ class PlanetWidget extends StatelessWidget {
     );
   }
 }
+

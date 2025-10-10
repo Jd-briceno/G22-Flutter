@@ -1,14 +1,13 @@
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-//import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:melodymuse/pages/complete_profile_page.dart';
 import 'package:melodymuse/pages/home_screen.dart';
 import 'package:heroicons/heroicons.dart';
 import 'package:country_picker/country_picker.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // ✅ para guardar local
+import 'package:shared_preferences/shared_preferences.dart';
 
 class FinalDetailsPage extends StatefulWidget {
   final User user;
@@ -68,22 +67,13 @@ class _FinalDetailsPageState extends State<FinalDetailsPage> {
 
     setState(() => saving = true);
 
-    // 🔹 Guardamos ruta local de la imagen (en vez de Firebase Storage por ahora)
+    // 🔹 Guardamos ruta local de la imagen
     String? imageUrl;
     if (_profileImage != null) {
-      imageUrl = _profileImage!.path; // ✅ Guardamos la ruta local
-      /*
-      // 🚧 Código para cuando tengas configurado Firebase Storage:
-      final ref = FirebaseStorage.instance
-          .ref()
-          .child("profile_pics")
-          .child("${widget.user.uid}.jpg");
-
-      await ref.putFile(_profileImage!);
-      imageUrl = await ref.getDownloadURL();
-      */
+      imageUrl = _profileImage!.path;
     }
 
+    // 🧩 Datos del usuario con título inicial
     final data = {
       "fullName": _fullNameController.text.trim(),
       "nickname": _nicknameController.text.trim(),
@@ -97,6 +87,8 @@ class _FinalDetailsPageState extends State<FinalDetailsPage> {
           : null,
       "gender": _selectedGender,
       "profileImageUrl": imageUrl,
+      "title": "Cadet", // 🟩 Título inicial por defecto
+      "createdAt": DateTime.now(),
       "updatedAt": DateTime.now().toIso8601String(),
     };
 
@@ -106,13 +98,14 @@ class _FinalDetailsPageState extends State<FinalDetailsPage> {
         .doc(widget.user.uid)
         .set(data, SetOptions(merge: true));
 
-    // 🔹 Guardar también en local con SharedPreferences
+    // 🔹 Guardar también en local
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString("fullName", (data["fullName"] ?? "").toString());
     await prefs.setString("nickname", (data["nickname"] ?? "").toString());
     await prefs.setString("description", (data["description"] ?? "").toString());
     await prefs.setString("gender", (data["gender"] ?? "").toString());
     await prefs.setString("profileImageUrl", (data["profileImageUrl"] ?? "").toString());
+    await prefs.setString("title", (data["title"] ?? "Cadet").toString()); // 🟩 Guardamos el título inicial
     if (data["nationality"] != null) {
       final nationality = data["nationality"] as Map<String, dynamic>;
       await prefs.setString("nationality_code", (nationality["code"] ?? "").toString());
@@ -267,7 +260,7 @@ class _FinalDetailsPageState extends State<FinalDetailsPage> {
             ),
             const SizedBox(height: 16),
 
-            // 🔹 Nationality con bandera
+            // 🔹 Nationality
             GestureDetector(
               onTap: () {
                 showCountryPicker(

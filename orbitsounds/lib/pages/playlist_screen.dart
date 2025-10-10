@@ -325,7 +325,8 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                                       MaterialPageRoute(
                                         builder: (context) =>
                                             TrackDetailScreen(tracks: tracks,
-                                            currentIndex: index,),
+                                            currentIndex: index,
+                                            genre: widget.genre,),
                                       ),
                                     );
                                   } else {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:melodymuse/components/vinyl_cover.dart';
+import 'package:melodymuse/pages/create_playlist_screen.dart';
 import '../components/search_bar.dart';
 import '../components/navbar.dart';
 import '../models/track_model.dart';
@@ -41,38 +42,18 @@ class _LibraryScreenState extends State<LibraryScreen>
 
   /// Simulación de playlists
   final _djRecommendations = const [
-    {
-      "title": "Hunting soul",
-      "cover":
-          "assets/images/Hunting.jpg"
-    },
-    {
-      "title": "Ruined King",
-      "cover":
-          "assets/images/Ruined.jpg"
-    },
+    {"title": "Hunting soul", "cover": "assets/images/Hunting.jpg"},
+    {"title": "Ruined King", "cover": "assets/images/Ruined.jpg"},
   ];
 
   final _friendsPlaylists = const [
-    {
-      "title": "I Believe",
-      "cover":
-          "assets/images/UFO.jpg"
-    },
-    {
-      "title": "Indie Dreams",
-      "cover":
-          "assets/images/Indie.jpg"
-    },
+    {"title": "I Believe", "cover": "assets/images/UFO.jpg"},
+    {"title": "Indie Dreams", "cover": "assets/images/Indie.jpg"},
   ];
 
   final _myPlaylists = const [
     {"title": "Roll a d20", "cover": "assets/images/Dungeons.jpg"},
-    {
-      "title": "Good Vibes",
-      "cover":
-          "assets/images/Good.jpg"
-    },
+    {"title": "Good Vibes", "cover": "assets/images/Good.jpg"},
     {
       "title": "Jazz Nights",
       "cover":
@@ -82,11 +63,7 @@ class _LibraryScreenState extends State<LibraryScreen>
 
   final _recommendedPlaylists = const [
     {"title": "Lofi", "cover": "assets/images/Lofi.jpg"},
-    {
-      "title": "Study",
-      "cover":
-          "assets/images/Study.jpg"
-    },
+    {"title": "Study", "cover": "assets/images/Study.jpg"},
     {
       "title": "Jazz Nights",
       "cover":
@@ -160,6 +137,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                 child: ListView.builder(
                   physics: const BouncingScrollPhysics(),
                   scrollDirection: Axis.horizontal,
+                  cacheExtent: 500, // 🔥 cachea items fuera de pantalla
                   addRepaintBoundaries: true,
                   itemCount: _songs.length,
                   itemBuilder: (context, index) {
@@ -182,7 +160,17 @@ class _LibraryScreenState extends State<LibraryScreen>
                   Row(
                     children: [
                       IconButton(
-                        onPressed: () {},
+                        onPressed: () async {
+                          final newPlaylist = await Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const CreatePlaylistScreen()),
+                          );
+
+                          if (newPlaylist != null) {
+                            // 🔥 Aquí puedes guardar en Firestore
+                            print("Nueva playlist creada: ${newPlaylist.title}");
+                          }
+                        },
                         icon: const HeroIcon(
                           HeroIcons.plusCircle,
                           color: Color(0XFFE9E8EE),
@@ -234,7 +222,10 @@ class _SongResultCard extends StatelessWidget {
       padding: const EdgeInsets.all(8.0),
       child: Column(
         children: [
-          VinylWithCover(albumArt: song.albumArt, isSpinning: false),
+          // 🔥 Cacheamos el vinilo + portada
+          RepaintBoundary(
+            child: VinylWithCover(albumArt: song.albumArt),
+          ),
           const SizedBox(height: 6),
           SizedBox(
             width: 100,
@@ -278,6 +269,7 @@ class _PlaylistSection extends StatelessWidget {
             child: ListView.builder(
               physics: const BouncingScrollPhysics(),
               scrollDirection: Axis.horizontal,
+              cacheExtent: 500, // 🔥 cachea items fuera de pantalla
               addRepaintBoundaries: true,
               itemCount: playlists.length,
               itemBuilder: (context, index) {
@@ -304,7 +296,9 @@ class _PlaylistSection extends StatelessWidget {
                                 fit: BoxFit.cover,
                               ),
                             )
-                          : VinylWithCover(albumArt: cover, isSpinning: false),
+                          : RepaintBoundary(
+                              child: VinylWithCover(albumArt: cover),
+                            ),
                       const SizedBox(height: 5),
                       SizedBox(
                         width: 100,

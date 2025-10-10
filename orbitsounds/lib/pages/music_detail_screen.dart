@@ -2,15 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:heroicons/heroicons.dart';
 import 'package:feather_icons/feather_icons.dart';
 import '../models/track_model.dart';
+import '../services/goal_tracker_service.dart';
 
 class TrackDetailScreen extends StatefulWidget {
   final List<Track> tracks;
   final int currentIndex;
+  final String genre; // 🟢 Nuevo: para el tracking de logros
 
   const TrackDetailScreen({
     super.key,
     required this.tracks,
     required this.currentIndex,
+    required this.genre,
   });
 
   @override
@@ -22,22 +25,24 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
   late AnimationController _progressController;
   late int _currentIndex;
   bool isLiked = false;
+  final GoalTrackerService _goalTracker = GoalTrackerService();
 
   @override
   void initState() {
     super.initState();
     _currentIndex = widget.currentIndex;
 
-    // ✅ Creamos un solo controller
     _progressController = AnimationController(vsync: this);
-
-    _progressController.addStatusListener((status) {
+    _progressController.addStatusListener((status) async {
       if (status == AnimationStatus.completed) {
+        // 🎵 Nuevo: registra canción escuchada
+        await _goalTracker.registerSongPlayed(widget.genre);
         _playNextTrack();
       }
     });
 
     _loadCurrentTrack();
+    _goalTracker.startTracking(widget.genre); // 🟢 Inicia conteo por género
   }
 
   void _loadCurrentTrack() {
@@ -45,17 +50,19 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
     final trackDuration =
         Duration(milliseconds: durationMs > 0 ? durationMs : 30000);
 
-    // ✅ Solo actualizamos duración y reiniciamos
     _progressController.duration = trackDuration;
     _progressController.reset();
     _progressController.forward();
   }
 
-  void _playNextTrack() {
+  Future<void> _playNextTrack() async {
     setState(() {
       _currentIndex = (_currentIndex + 1) % widget.tracks.length;
       _loadCurrentTrack();
     });
+
+    // 🎵 Nuevo: registra reproducción manual también
+    await _goalTracker.registerSongPlayed(widget.genre);
   }
 
   void _playPrevTrack() {
@@ -63,17 +70,18 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
 
     setState(() {
       if (currentProgress > 0.1) {
-        _loadCurrentTrack(); // reinicia la misma canción
+        _loadCurrentTrack();
       } else {
         _currentIndex =
             (_currentIndex - 1 + widget.tracks.length) % widget.tracks.length;
-        _loadCurrentTrack(); // carga la anterior
+        _loadCurrentTrack();
       }
     });
   }
 
   @override
   void dispose() {
+    _goalTracker.stopTracking(); // 🛑 Detiene el conteo al salir
     _progressController.dispose();
     super.dispose();
   }
@@ -92,7 +100,7 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
     final nextTrack = widget.tracks[nextIndex];
 
     return Scaffold(
-      backgroundColor: Color(0XFF010B19),
+      backgroundColor: const Color(0XFF010B19),
       body: Stack(
         children: [
           if (track.albumArt.isNotEmpty)
@@ -110,6 +118,7 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
               ),
             ),
 
+          /// 🔴 Fondo curvo inferior
           Positioned(
             top: screenHeight * 0.50,
             left: 0,
@@ -138,7 +147,10 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
                           color: Colors.white,
                           size: 40,
                         ),
-                        onPressed: () => Navigator.of(context).pop(),
+                        onPressed: () {
+                          _goalTracker.stopTracking(); // 🛑 Detener al salir
+                          Navigator.of(context).pop();
+                        },
                       ),
                       Expanded(
                         child: Column(
@@ -186,7 +198,7 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
 
                 const SizedBox(height: 60),
 
-                /// 🎵 Canciones centradas
+                /// 🎵 Vista centrada de las canciones
                 Expanded(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
@@ -230,7 +242,7 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
                   ),
                 ),
 
-                /// 🎶 Controles dentro del bloque rojo
+                /// 🎶 Controles de música
                 AnimatedBuilder(
                   animation: _progressController,
                   builder: (context, child) {
@@ -249,8 +261,8 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
                             child: CustomPaint(
                               painter: _CurvedProgressPainter(
                                 progress: _progressController.value,
-                                backgroundColor: Color(0XFFB4B1B8),
-                                progressColor: Color(0XFF0095FC),
+                                backgroundColor: const Color(0XFFB4B1B8),
+                                progressColor: const Color(0XFF0095FC),
                                 strokeWidth: 4,
                               ),
                               child: const SizedBox(
@@ -268,18 +280,20 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
                                 /// ❤️ Like
                                 IconButton(
                                   icon: Icon(
-                                    isLiked
-                                        ? Icons.favorite
-                                        : Icons.favorite_border,
+                                    isLiked ? Icons.favorite : Icons.favorite_border,
                                     color: Colors.white,
                                     size: 45,
                                   ),
-                                  onPressed: () {
+                                  onPressed: () async {
                                     setState(() => isLiked = !isLiked);
+                                    if (isLiked) {
+                                      // ❤️ Nuevo: registrar like
+                                      await _goalTracker.registerLike(widget.genre);
+                                    }
                                   },
                                 ),
 
-                                /// ⏱️ Tiempo actual / total
+                                /// ⏱️ Tiempos
                                 Padding(
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 40),
@@ -290,13 +304,15 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
                                       Text(
                                         _formatDuration(position),
                                         style: const TextStyle(
-                                            color: Colors.white70, fontSize: 13,
+                                            color: Colors.white70,
+                                            fontSize: 13,
                                             fontFamily: "RobotoMono"),
                                       ),
                                       Text(
                                         _formatDuration(duration),
                                         style: const TextStyle(
-                                            color: Colors.white70, fontSize: 13,
+                                            color: Colors.white70,
+                                            fontSize: 13,
                                             fontFamily: "RobotoMono"),
                                       ),
                                     ],
@@ -320,7 +336,7 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
                                 ),
                                 const SizedBox(height: 20),
 
-                                /// 🎧 Controles
+                                /// 🎧 Controles principales
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
@@ -333,25 +349,22 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
                                         size: 50,
                                       ),
                                     ),
-
                                     const SizedBox(width: 40),
-
                                     PlayPauseButton(
-                                      isPlaying:
-                                          _progressController.isAnimating,
+                                      isPlaying: _progressController.isAnimating,
                                       onTap: () {
                                         setState(() {
                                           if (_progressController.isAnimating) {
                                             _progressController.stop();
+                                            _goalTracker.stopTracking(); // 🛑 pausa tracking
                                           } else {
                                             _progressController.forward();
+                                            _goalTracker.startTracking(widget.genre); // ▶️ reanuda tracking
                                           }
                                         });
                                       },
                                     ),
-
                                     const SizedBox(width: 40),
-
                                     IconButton(
                                       onPressed: _playNextTrack,
                                       icon: const HeroIcon(
@@ -363,7 +376,6 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 20),
                               ],
                             ),
                           ),
@@ -443,13 +455,13 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
   }
 }
 
-/// 🔴 Fondo curvo rojo
+/// 🔴 Fondo curvo inferior
 class _BottomCurvePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final fillPaint = Paint()
       ..style = PaintingStyle.fill
-      ..color = Color(0XFF010B19);
+      ..color = const Color(0XFF010B19);
 
     final strokePaint = Paint()
       ..style = PaintingStyle.stroke
@@ -514,7 +526,6 @@ class _CurvedProgressPainter extends CustomPainter {
       );
 
     canvas.drawPath(path, bgPaint);
-
     final metrics = path.computeMetrics().first;
     final extractPath = metrics.extractPath(0, metrics.length * progress);
     canvas.drawPath(extractPath, fgPaint);
@@ -538,8 +549,8 @@ class PlayPauseButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const double size = 100; // tamaño total del botón
-    const double innerRadius = (size / 2) - 15; // radio del círculo interno
+    const double size = 100;
+    const double innerRadius = (size / 2) - 15;
 
     return GestureDetector(
       onTap: onTap,
@@ -550,12 +561,12 @@ class PlayPauseButton extends StatelessWidget {
           height: size,
           child: Center(
             child: Container(
-              width: innerRadius * 1.4, // ajustamos para que el icono quepa
+              width: innerRadius * 1.4,
               height: innerRadius * 1.4,
               alignment: Alignment.center,
               child: Icon(
                 isPlaying ? FeatherIcons.pause : FeatherIcons.play,
-                size: innerRadius, // el ícono ocupa el círculo pequeño
+                size: innerRadius,
                 color: Colors.white,
               ),
             ),
@@ -575,7 +586,7 @@ class _CirclePainter extends CustomPainter {
       ..strokeWidth = 2;
 
     final inner = Paint()
-      ..color = Color(0XFFB4B1B8)
+      ..color = const Color(0XFFB4B1B8)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
 

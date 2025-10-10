@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -12,6 +13,7 @@ class BackstageCard extends StatelessWidget {
   final String description;
   final String qrData;
   final String backgroundAsset;
+  final VoidCallback? onEditPressed; // 👈 nuevo parámetro
 
   const BackstageCard({
     super.key,
@@ -23,16 +25,30 @@ class BackstageCard extends StatelessWidget {
     required this.qrData,
     this.isAsset = false,
     this.backgroundAsset = 'assets/images/Perfil.png',
+    this.onEditPressed,
   });
+
+  ImageProvider _getImageProvider(String url, bool isAsset) {
+    if (isAsset) {
+      return AssetImage(url);
+    } else if (url.startsWith('/data/')) {
+      return FileImage(File(url));
+    } else if (url.startsWith('http')) {
+      return NetworkImage(url);
+    } else {
+      return const AssetImage('assets/images/default_avatar.png');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final avatarSize = 96.0;
     final qrSize = 100.0;
+    final avatarImage = _getImageProvider(avatarUrl, isAsset);
 
     return Stack(
       children: [
-        // 📌 La tarjeta en sí
+        // 📌 Tarjeta
         Container(
           width: 320,
           height: 380,
@@ -50,7 +66,6 @@ class BackstageCard extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               child: Column(
-                mainAxisSize: MainAxisSize.max,
                 children: [
                   // Avatar
                   Center(
@@ -69,17 +84,13 @@ class BackstageCard extends StatelessWidget {
                           ),
                         ],
                         image: DecorationImage(
-                          image: isAsset
-                              ? AssetImage(avatarUrl) as ImageProvider
-                              : NetworkImage(avatarUrl),
+                          image: avatarImage,
                           fit: BoxFit.cover,
                         ),
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 12),
-
                   // Nombre
                   Text(
                     username,
@@ -92,10 +103,8 @@ class BackstageCard extends StatelessWidget {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 10),
-
-                  // Badge con título
+                  // Título
                   Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 20, vertical: 8),
@@ -116,9 +125,7 @@ class BackstageCard extends StatelessWidget {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 5),
-
                   // Descripción
                   Text(
                     description,
@@ -133,9 +140,7 @@ class BackstageCard extends StatelessWidget {
                       ),
                     ),
                   ),
-
                   const Spacer(),
-
                   // QR
                   Container(
                     padding: const EdgeInsets.all(8),
@@ -144,7 +149,7 @@ class BackstageCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: [
                         BoxShadow(
-                          color: Color(0XFF010B19).withOpacity(0.4),
+                          color: const Color(0XFF010B19).withOpacity(0.4),
                           blurRadius: 10,
                           offset: const Offset(0, 6),
                         ),
@@ -154,22 +159,7 @@ class BackstageCard extends StatelessWidget {
                       data: qrData,
                       version: QrVersions.auto,
                       size: qrSize,
-                      gapless: true,
                       backgroundColor: Colors.white,
-                      embeddedImage: isAsset
-                          ? AssetImage(avatarUrl)
-                          : NetworkImage(avatarUrl) as ImageProvider,
-                      embeddedImageStyle: const QrEmbeddedImageStyle(
-                        size: Size.square(30),
-                      ),
-                      eyeStyle: const QrEyeStyle(
-                        eyeShape: QrEyeShape.square,
-                        color: Color(0XFF010B19),
-                      ),
-                      dataModuleStyle: const QrDataModuleStyle(
-                        dataModuleShape: QrDataModuleShape.square,
-                        color: Color(0XFF010B19),
-                      ),
                     ),
                   ),
                 ],
@@ -178,15 +168,12 @@ class BackstageCard extends StatelessWidget {
           ),
         ),
 
-        // ✏️ Botón Pencil arriba a la izquierda
+        // ✏️ Botón editar
         Positioned(
           top: 8,
           right: 8,
           child: IconButton(
-            onPressed: () {
-              // 🚀 acción cuando toques el botón
-              debugPrint("Editar perfil");
-            },
+            onPressed: onEditPressed,
             icon: const HeroIcon(
               HeroIcons.pencilSquare,
               style: HeroIconStyle.outline,

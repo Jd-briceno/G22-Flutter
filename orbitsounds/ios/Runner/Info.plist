@@ -45,19 +45,55 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
-	<!-- 🚀 Permisos de Localización -->
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Necesitamos acceder a tu ubicación para mostrarte el clima actual.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>La aplicación requiere tu ubicación para mostrarte información del clima en tiempo real.</string>
-	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Necesitamos usar Bluetooth para encontrar amigos cercanos.</string>
-	<!--Permisos Almacenamiento-->
+
+	<!-- 🔹 Configuración necesaria para Google Sign-In -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.84892838356-2858rsiau5chjc53uaia020afrbiqqmv</string>
+			</array>
+		</dict>
+	</array>
+
+	<!-- 🔹 Permisos de red requeridos por Firebase -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+
+	<!-- 🔸 Permisos de privacidad requeridos -->
+	<key>NSUserTrackingUsageDescription</key>
+	<string>Se usa para personalizar tu experiencia musical y de recomendaciones.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>This app needs access to your camera to take profile photos.</string>
+	<string>Se requiere acceso a la cámara para capturar tu imagen de perfil.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>This app needs access to your photo library to select profile photos.</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>This app needs permission to save profile photos to your library.</string>
+	<string>Se requiere acceso a tu galería para seleccionar o subir fotos.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Necesitamos acceso al micrófono para que puedas grabar notas de voz en el Captain’s Log.</string>
+
+	<!-- 🛑 Permisos requeridos por permission_handler y geolocalización -->
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Permite que la app personalice tu experiencia musical incluso cuando se ejecuta en segundo plano.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Se necesita acceso a la ubicación para personalizar la experiencia musical y mostrar notificaciones contextuales.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Permite enviar notificaciones relacionadas con tu actividad incluso en segundo plano.</string>
+
+	<!-- 🔔 Permisos para notificaciones locales -->
+	<key>UNUserNotificationCenterUsageDescription</key>
+	<string>La app necesita enviar notificaciones sobre tu actividad musical, logros y recordatorios.</string>
+
+	<!-- ⚙️ Soporte para tareas en segundo plano (notificaciones, fetch, etc.) -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
+
 </dict>
 </plist>
