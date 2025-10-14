@@ -110,6 +110,7 @@ class _FinalDetailsPageState extends State<FinalDetailsPage> {
       imageUrl = _profileImage!.path;
     }
 
+    // 🧩 Datos del usuario con título inicial
     final data = {
       "fullName": _fullNameController.text.trim(),
       "nickname": _nicknameController.text.trim(),
