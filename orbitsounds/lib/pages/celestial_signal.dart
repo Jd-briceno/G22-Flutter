@@ -1,8 +1,10 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:melodymuse/components/navbar.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:melodymuse/pages/genre_selector.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 
 // ───────────────────────────────────────────────
@@ -10,7 +12,7 @@ import 'package:melodymuse/pages/genre_selector.dart';
 // ───────────────────────────────────────────────
 void main() {
   runApp(const MaterialApp(
-    home: CelestialSignalPage(),
+    home: CelestialSignalPage(sessionId: "test_session"),
     debugShowCheckedModeBanner: false,
   ));
 }
@@ -592,7 +594,8 @@ class _AllConstellationsPainter extends CustomPainter {
 // UI PRINCIPAL
 // ───────────────────────────────────────────────
 class CelestialSignalPage extends StatefulWidget {
-  const CelestialSignalPage({super.key});
+  final String sessionId;
+  const CelestialSignalPage({super.key, required this.sessionId});
 
   @override
   State<CelestialSignalPage> createState() => _CelestialSignalPageState();
@@ -609,6 +612,37 @@ class _CelestialSignalPageState extends State<CelestialSignalPage>
     _controller =
         AnimationController(vsync: this, duration: const Duration(seconds: 2))
           ..repeat(reverse: true);
+  }
+
+  Future<void> _saveConstellationEmotion(String emotion) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      final docRef = FirebaseFirestore.instance
+          .collection("users")
+          .doc(user.uid)
+          .collection("sessions")
+          .doc(widget.sessionId); // 👈 usamos el sessionId que vino de la otra pantalla
+
+      // Asegurar que la sesión existe
+      await docRef.set({
+        "userId": user.uid,
+        "sessionId": widget.sessionId,
+        "timestamp": FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      // Guardar emoción en subcolección
+      await docRef.collection("constellation").add({
+        "emotion": emotion,
+        "source":"Constellation",
+        "timestamp": FieldValue.serverTimestamp(),
+      });
+
+      debugPrint("✅ Emoción guardada: $emotion");
+    } catch (e) {
+      debugPrint("❌ Error guardando emoción: $e");
+    }
   }
 
   void _handleTap(TapDownDetails details, Size size) {
@@ -877,7 +911,25 @@ Widget build(BuildContext context) {
                           top: cruzPos.dy + 100,
                           left: cruzPos.dx - 150,
                           child: GestureDetector(
-                            onTap: () {
+                            onTap: () async {
+                              String emotionToSave = "";
+                              if (_selected.isNotEmpty) {
+                                if (_selected.length == 1) {
+                                  final idx = constellations.indexOf(_selected.first);
+                                  emotionToSave = (constellationInfo["$idx"]?["emotion"] as String?) ?? "";
+                                } else {
+                                  final i1 = constellations.indexOf(_selected[0]);
+                                  final i2 = constellations.indexOf(_selected[1]);
+                                  final ordered = [i1, i2]..sort();
+                                  final key = "${ordered[0]}_${ordered[1]}";
+                                  emotionToSave = (constellationInfo[key]?["emotion"] as String?) ?? "";
+                                }
+
+                                if (emotionToSave.isNotEmpty) {
+                                  await _saveConstellationEmotion(emotionToSave);
+                                }
+                              }
+
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(

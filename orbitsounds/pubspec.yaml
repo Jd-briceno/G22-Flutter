@@ -69,9 +69,18 @@ dependencies:
   #Country
   country_picker: ^2.0.25
   #Shared
-  shared_preferences: ^2.2.3
+  shared_preferences: ^2.2.3 
   #Icons
-  feather_icons: ^1.2.0 
+  feather_icons: ^1.2.0
+  #Audio
+  just_audio: ^0.9.42
+  #Notifications
+  flutter_local_notifications: ^17.2.1
+  #Cambio interfaz de estado
+  provider: ^6.1.2
+  #Aanalitica
+  firebase_analytics: ^11.0.0
+
 
 
 
@@ -142,6 +151,7 @@ flutter:
   assets:
     - assets/audio/   # 🎵 Your emotion sound files
     - assets/images/  # 🧸 Mascot and other images
+    - assets/medals/  # Medals
     - .env #ENV
   fonts:
     - family: RobotoMono

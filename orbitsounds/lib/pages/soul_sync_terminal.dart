@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:melodymuse/components/navbar.dart';
 import 'package:melodymuse/pages/celestial_signal.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_analytics/observer.dart';
 
 class SoulSyncTerminal extends StatefulWidget {
   const SoulSyncTerminal({Key? key}) : super(key: key);
@@ -59,12 +62,20 @@ class _SoulSyncTerminal extends State<SoulSyncTerminal>
   List<String> _selectedEmotions = []; // 📍 Registro de emociones únicas
   late AnimationController _controller;
   late Animation<double> _thumbAnimation;
+  final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
 
   static const railTop = 21.2913;
   static const railHeight = 571.797;
   static const railBottom = railTop + railHeight;
 
   final double scale = 0.758;
+
+  //Usuario actual
+  String? _getCurrentUserId() {
+    final user = FirebaseAuth.instance.currentUser;
+    return user?.uid ?? "guest";
+  }
+
 
   /// Guarda UNA emoción (documento por emoción)
   Future<void> _saveEmotionToFirestore(String emotion, String source) async {
@@ -101,11 +112,74 @@ class _SoulSyncTerminal extends State<SoulSyncTerminal>
     }
   }
 
+  //Crear sesión
+  Future<String?> _createSessionOnExit() async {
+  if (_selectedEmotions.isEmpty) {
+    print("⚠️ No hay emociones para guardar en sesión.");
+    return null;
+  }
+
+  try {
+    final uid = _getCurrentUserId();
+    final sessionId = DateTime.now().millisecondsSinceEpoch.toString();
+
+    // 🔹 Guarda la sesión en Firestore
+    await FirebaseFirestore.instance
+        .collection("users")
+        .doc(uid)
+        .collection("sessions")
+        .doc(sessionId)
+        .set({
+      "sessionId": sessionId,
+      "userId": uid,
+      "emotions": _selectedEmotions,
+      "timestamp": FieldValue.serverTimestamp(),
+    });
+
+    print("✅ Sesión guardada en users/$uid/sessions/$sessionId");
+
+    // 🔹 Registrar también en Firebase Analytics
+    try {
+      await FirebaseAnalytics.instance.logEvent(
+        name: 'session_created',
+        parameters: {
+          'session_id': sessionId,
+          'user_id': ?uid,
+          'emotion_count': _selectedEmotions.length,
+          'emotions': _selectedEmotions.join(', '),
+        },
+      );
+      print("📊 Analytics: session_created -> $sessionId");
+    } catch (e) {
+      print("⚠️ Error registrando evento en Analytics: $e");
+    }
+
+    return sessionId; // devolvemos el id
+  } catch (e) {
+    print("❌ Error al guardar sesión: $e");
+    return null;
+  }
+}
+
+
+
   // Manejo centralizado: añade a historial y guarda en Firestore (padre)
   void _handleEmotionSelection(String emotion, String source) {
     if (emotion.isEmpty) return;
     _setSelectedEmotion(emotion);
     _saveEmotionToFirestore(emotion, source);
+
+    // 🔹 Nuevo: registrar en Analytics
+    _analytics.logEvent(
+      name: 'emotion_selected',
+      parameters: {
+        'emotion': emotion,
+        'source': source, // slider, knob1, knob2
+        'user_id': ?_getCurrentUserId(),
+      },
+    );
+
+    print("📊 Analytics: emotion_selected -> $emotion ($source)");
   }
 
   // ========================================================
@@ -497,11 +571,16 @@ class _SoulSyncTerminal extends State<SoulSyncTerminal>
                           offset: const Offset(-15, 0), // 👈 mueve el botón 15px a la izquierda
                           child: GestureDetector(
                             onTap: () async {
-                              await _saveEmotionsToFirestore();
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (context) => const CelestialSignalPage()),
-                              );
+                              await _saveEmotionsToFirestore(); 
+                              final sessionId = await _createSessionOnExit(); // 👈 lo capturamos
+                              if (sessionId != null) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => CelestialSignalPage(sessionId: sessionId), // 👈 lo pasamos
+                                  ),
+                                );
+                              }
                             },
                             child: SizedBox(
                               width: 191 * scale,

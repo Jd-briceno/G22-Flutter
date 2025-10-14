@@ -7,6 +7,10 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 import 'package:heroicons/heroicons.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:melodymuse/pages/longbook_history_screen.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 
 import '../services/weather_service.dart';
 import '../models/weather_model.dart';
@@ -36,7 +40,7 @@ final List<String> _albumCovers = [
 
 
 // Lista de emociones activas (puedes probar cambiando aquí)
-final List<String> _selectedEmotions = ["joy","sadness","anger","fear","love","boredom","embarrasment","anxiety","disgust","envy"];
+List<String> _selectedEmotions = [];
 
 // Mapa de emociones disponibles
 final List<Emotion> _allEmotions = [
@@ -136,6 +140,8 @@ final List<Emotion> _allEmotions = [
 
 class _LongbookState extends State<Longbook> {
   Future<Weather?>? _weatherFuture;
+  String? _latestConstellationEmotion;
+  final FirebaseAnalytics analytics = FirebaseAnalytics.instance;
 
   // === Notas de voz ===
   final List<String> _voiceNotes = []; // rutas locales de audios grabados
@@ -151,9 +157,154 @@ class _LongbookState extends State<Longbook> {
   @override
   void initState() {
     super.initState();
+    _logLongbookOpened();
     _initRecorder();
     _getWeatherWithLocation();
+    _loadLatestSessionEmotions();
+    _loadLatestConstellationEmotion();
   }
+
+  //Cuando Abre la Longbook
+  Future<void> _logLongbookOpened() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      await analytics.logEvent(
+        name: 'longbook_opened',
+        parameters: {
+          'user_id': ?user?.uid,
+          'timestamp': DateTime.now().toIso8601String(),
+        },
+      );
+      debugPrint("📊 Analytics: longbook_opened enviado");
+    } catch (e) {
+      debugPrint("❌ Error enviando evento longbook_opened: $e");
+    }
+  }
+
+  //Cargar Sesión
+  Future<void> _loadLatestSessionEmotions() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      debugPrint("❌ No hay usuario logueado.");
+      return;
+    }
+
+    try {
+      // Traemos varias sesiones por si alguna tiene timestamp nulo; ordenamos por timestamp DESC
+      final sessionsSnapshot = await FirebaseFirestore.instance
+          .collection("users")
+          .doc(user.uid)
+          .collection("sessions")
+          .orderBy("timestamp", descending: true)
+          .limit(5)
+          .get();
+
+      if (sessionsSnapshot.docs.isEmpty) {
+        debugPrint("⚠️ No hay sesiones para el usuario ${user.uid}");
+        return;
+      }
+
+      // Debug: listar las sesiones recuperadas para verificar cuál es la "última"
+      debugPrint("🔎 Sessions encontradas:");
+      for (var d in sessionsSnapshot.docs) {
+        final data = d.data();
+        final ts = data['timestamp'];
+        final tsStr = ts is Timestamp ? ts.toDate().toIso8601String() : (ts?.toString() ?? 'null');
+        debugPrint(" - ${d.id}  timestamp=$tsStr  emotionsField=${data['emotions']}");
+      }
+
+      // Tomamos la primera (la supuesta "última")
+      final latestDoc = sessionsSnapshot.docs.first;
+      final latestData = latestDoc.data();
+      final latestId = latestDoc.id;
+      debugPrint("📌 Usando sessionId: $latestId");
+
+      List<String> loaded = [];
+
+      // Caso A: la sesión tiene un campo 'emotions' (array) dentro del documento
+      final dynamic emotionsField = latestData['emotions'];
+      if (emotionsField != null && emotionsField is List && emotionsField.isNotEmpty) {
+        loaded = emotionsField
+            .map((e) => e.toString().trim().toLowerCase())
+            .where((s) => s.isNotEmpty)
+            .toList();
+        debugPrint("📥 Cargadas desde campo 'emotions' (doc): $loaded");
+      } else {
+        // Caso B: fallback a la subcolección users/{uid}/sessions/{id}/emotions
+        final subColl = await latestDoc.reference.collection("emotions").get();
+        if (subColl.docs.isNotEmpty) {
+          loaded = subColl.docs.map((d) {
+            final val = d.data()['emotion'];
+            return val?.toString().trim().toLowerCase() ?? "";
+          }).where((s) => s.isNotEmpty).toList();
+          debugPrint("📥 Cargadas desde subcolección 'emotions': $loaded");
+        } else {
+          debugPrint("⚠️ Ninguna emoción encontrada en doc ni en subcolección para sessionId $latestId");
+        }
+      }
+
+      // Actualiza estado (normalizamos siempre a minúsculas para que coincida con tus nombres locales)
+      setState(() {
+        _selectedEmotions = loaded;
+      });
+
+      debugPrint("✅ Emociones cargadas (final): $_selectedEmotions (sessionId: $latestId)");
+    } catch (e, st) {
+      debugPrint("❌ Error cargando emociones de la última sesión: $e\n$st");
+    }
+  }
+
+  //Cargar Constelacion
+  Future<void> _loadLatestConstellationEmotion() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      // 1️⃣ Traer la última sesión
+      final sessionSnapshot = await FirebaseFirestore.instance
+          .collection("users")
+          .doc(user.uid)
+          .collection("sessions")
+          .orderBy("timestamp", descending: true)
+          .limit(1)
+          .get();
+
+      if (sessionSnapshot.docs.isEmpty) {
+        debugPrint("⚠️ No hay sesiones para este usuario");
+        return;
+      }
+
+      final latestSessionId = sessionSnapshot.docs.first.id;
+
+      // 2️⃣ Traer la última emoción de constellation
+      final constellationSnapshot = await FirebaseFirestore.instance
+          .collection("users")
+          .doc(user.uid)
+          .collection("sessions")
+          .doc(latestSessionId)
+          .collection("constellation")
+          .orderBy("timestamp", descending: true)
+          .limit(1)
+          .get();
+
+      if (constellationSnapshot.docs.isNotEmpty) {
+        final data = constellationSnapshot.docs.first.data();
+        final emotion = data["emotion"]?.toString() ?? "";
+
+        setState(() {
+          _latestConstellationEmotion = emotion;
+        });
+
+        debugPrint("✅ Última constellation emotion: $emotion");
+      } else {
+        debugPrint("⚠️ No hay emociones en constellation para esta sesión");
+      }
+    } catch (e) {
+      debugPrint("❌ Error cargando constellation emotion: $e");
+    }
+  }
+
+
 
   Future<void> _initRecorder() async {
     await _recorder.openRecorder();
@@ -443,7 +594,19 @@ class _LongbookState extends State<Longbook> {
                               size: 50,
                               style: HeroIconStyle.outline),
                           onPressed: () {
-                            debugPrint("Heart action");
+                            final user = FirebaseAuth.instance.currentUser;
+                            if (user != null) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => LongbookHistoryPage(userId: user.uid),
+                                ),
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("Inicia sesión para ver tu historial")),
+                              );
+                            }
                           },
                         ),
                       ),
@@ -658,20 +821,22 @@ class _LongbookState extends State<Longbook> {
                     ),
 
                     // Render dinámico de ondas
-                    ..._allEmotions.where((e) => _selectedEmotions.contains(e.name)).map((emotion) {
-                      return Positioned(
-                        left: 6,
-                        top: emotion.top,
-                        child: SizedBox(
-                          width: 348,
-                          height: 45,
-                          child: SvgPicture.string(
-                            emotion.svg,
-                            allowDrawingOutsideViewBox: true,
+                  ..._allEmotions
+                      .where((e) => _selectedEmotions.contains(e.name.toLowerCase()))
+                      .map((emotion) {
+                        return Positioned(
+                          left: 6,
+                          top: emotion.top,
+                          child: SizedBox(
+                            width: 348,
+                            height: 45,
+                            child: SvgPicture.string(
+                              emotion.svg,
+                              allowDrawingOutsideViewBox: true,
+                            ),
                           ),
-                        ),
-                      );
-                    }).toList(),
+                        );
+                      }).toList(),
                   ],
                 ),
                 // === BLOQUE 5 ===
@@ -731,15 +896,15 @@ class _LongbookState extends State<Longbook> {
                   ),
 
                   // Texto en el rectángulo verde
-                  const Positioned(
+                  Positioned(
                     top: 44,
                     left: 10,
                     width: 173,
                     height: 32,
                     child: Center(
                       child: Text(
-                        "Perseverance",
-                        style: TextStyle(
+                        _latestConstellationEmotion ?? "Perseverance", // fallback si no hay nada
+                        style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
                           color: Color(0XFFE9E8EE),

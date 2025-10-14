@@ -11,13 +11,11 @@ import 'vinyl_record.dart'; // Tu componente VinylRecord
 class VinylWithCover extends StatelessWidget {
   final String albumArt;   // Imagen de la portada (local o URL)
   final String vinylArt;   // Imagen de la etiqueta del vinilo (opcional)
-  final bool isSpinning;   // Si el vinilo está girando
 
   const VinylWithCover({
     super.key,
     required this.albumArt,
     this.vinylArt = "",
-    this.isSpinning = false,
   });
 
   /// Helper para soportar assets y URLs
@@ -47,7 +45,6 @@ class VinylWithCover extends StatelessWidget {
               image: _getImageProvider(
                 vinylArt.isNotEmpty ? vinylArt : albumArt,
               ),
-              isSpinning: isSpinning,
             ),
           ),
 
