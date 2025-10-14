@@ -6,12 +6,23 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_analytics/observer.dart';
 import 'firebase_options.dart';
+
+// 🔹 Provider y servicios
+import 'package:provider/provider.dart';
+import 'package:melodymuse/services/playback_manager_service.dart';
 import 'package:melodymuse/services/notification_service.dart';
+
+// 🔹 Páginas
 import 'package:melodymuse/pages/final_detail_page.dart';
 import 'package:melodymuse/pages/home_screen.dart';
 import 'package:melodymuse/pages/complete_profile_page.dart';
 import 'package:melodymuse/pages/login-screen.dart';
+
+// 🔹 Instancia global de Analytics
+final FirebaseAnalytics analytics = FirebaseAnalytics.instance;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,15 +36,15 @@ Future<void> main() async {
   }
 
   _setupGlobalErrorHandlers();
-
   await _ensureFirebase();
 
   runZonedGuarded(() async {
     print('🧠 Entrando en runZonedGuarded -> runApp');
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final notificationService = NotificationService();
       try {
-        print('📣 Llamando a NotificationService.init()...');
+        print('📣 Inicializando NotificationService...');
         await notificationService.init();
         print('🔔 Notificaciones listas tras frame inicial.');
       } catch (e, st) {
@@ -52,12 +63,8 @@ RawReceivePort? _isolateErrorPort;
 void _setupGlobalErrorHandlers() {
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
-    final exception = details.exception;
-    final stack = details.stack;
-    print('🐞 FlutterError capturado: $exception');
-    if (stack != null) {
-      print(stack);
-    }
+    print('🐞 FlutterError capturado: ${details.exception}');
+    if (details.stack != null) print(details.stack);
   };
 
   WidgetsBinding.instance.platformDispatcher.onError = (error, stack) {
@@ -85,11 +92,10 @@ Future<void> _ensureFirebase() async {
       return;
     }
 
-    // En iOS/macOS el archivo GoogleService-Info.plist ya trae la configuración.
     if (!kIsWeb &&
         (defaultTargetPlatform == TargetPlatform.iOS ||
             defaultTargetPlatform == TargetPlatform.macOS)) {
-      print('🍎 Inicializando Firebase con configuración nativa (iOS/macOS).');
+      print('🍎 Inicializando Firebase con configuración nativa.');
       await Firebase.initializeApp();
     } else {
       print('🤖 Inicializando Firebase con DefaultFirebaseOptions.');
@@ -98,12 +104,12 @@ Future<void> _ensureFirebase() async {
       );
     }
 
-    print("✅ Firebase inicializado correctamente desde main.dart");
+    print("✅ Firebase inicializado correctamente.");
   } on FirebaseException catch (e, st) {
     if (e.code == 'duplicate-app') {
-      print("ℹ️ Firebase ya estaba configurado nativamente, reutilizando la instancia existente.");
+      print("ℹ️ Firebase ya estaba configurado nativamente, reutilizando instancia.");
     } else {
-      print("🔥 FirebaseException al inicializar Firebase: ${e.code} ${e.message}\n$st");
+      print("🔥 FirebaseException al inicializar: ${e.code} ${e.message}\n$st");
     }
   } catch (e, st) {
     print("🔥 Error inesperado al inicializar Firebase: $e\n$st");
@@ -114,8 +120,7 @@ class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   Future<String> _checkUserState(User user) async {
-    final doc =
-        await FirebaseFirestore.instance.collection("users").doc(user.uid).get();
+    final doc = await FirebaseFirestore.instance.collection("users").doc(user.uid).get();
 
     if (!doc.exists) return "noProfile";
     final data = doc.data() ?? {};
@@ -125,42 +130,48 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'MelodyMuse',
-      theme: ThemeData.dark(),
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
+    return ChangeNotifierProvider.value(
+      value: PlaybackManagerService(),
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'MelodyMuse',
+        theme: ThemeData.dark(),
+        navigatorObservers: [
+          FirebaseAnalyticsObserver(analytics: analytics), // 👈 importante para screen_view
+        ],
+        home: StreamBuilder<User?>(
+          stream: FirebaseAuth.instance.authStateChanges(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            final user = snapshot.data;
+            if (user == null) return LoginPage();
+
+            return FutureBuilder<String>(
+              future: _checkUserState(user),
+              builder: (context, snap) {
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return const Scaffold(
+                    body: Center(child: CircularProgressIndicator()),
+                  );
+                }
+
+                switch (snap.data) {
+                  case "noProfile":
+                    return CompleteProfilePage(user: user);
+                  case "incomplete":
+                    return FinalDetailsPage(user: user);
+                  default:
+                    return const HomeScreen();
+                }
+              },
             );
-          }
-
-          final user = snapshot.data;
-          if (user == null) return LoginPage();
-
-          return FutureBuilder<String>(
-            future: _checkUserState(user),
-            builder: (context, snap) {
-              if (snap.connectionState == ConnectionState.waiting) {
-                return const Scaffold(
-                  body: Center(child: CircularProgressIndicator()),
-                );
-              }
-
-              switch (snap.data) {
-                case "noProfile":
-                  return CompleteProfilePage(user: user);
-                case "incomplete":
-                  return FinalDetailsPage(user: user);
-                default:
-                  return const HomeScreen();
-              }
-            },
-          );
-        },
+          },
+        ),
       ),
     );
   }

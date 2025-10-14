@@ -5,6 +5,7 @@ class Track {
   final int durationMs;    // raw milliseconds
   final String albumArt;
   final String? previewUrl; // optional, for 30s preview playback
+  bool isLiked; // ✅ Nuevo campo para controlar el "like"
 
   Track({
     required this.title,
@@ -13,6 +14,7 @@ class Track {
     required this.durationMs,
     required this.albumArt,
     this.previewUrl,
+    this.isLiked = false, // valor inicial por defecto
   });
 
   factory Track.fromSpotify(Map<String, dynamic> json) {
@@ -34,7 +36,29 @@ class Track {
       duration: "$minutes:${seconds.toString().padLeft(2, '0')}",
       durationMs: durationMs,
       albumArt: albumArtUrl,
-      previewUrl: json['preview_url'], // can be null
+      previewUrl: json['preview_url'],
+      isLiked: false, // 🔹 Inicialmente no le gusta
+    );
+  }
+
+  // ✅ copyWith: útil para clonar o actualizar propiedades
+  Track copyWith({
+    String? title,
+    String? artist,
+    String? duration,
+    int? durationMs,
+    String? albumArt,
+    String? previewUrl,
+    bool? isLiked,
+  }) {
+    return Track(
+      title: title ?? this.title,
+      artist: artist ?? this.artist,
+      duration: duration ?? this.duration,
+      durationMs: durationMs ?? this.durationMs,
+      albumArt: albumArt ?? this.albumArt,
+      previewUrl: previewUrl ?? this.previewUrl,
+      isLiked: isLiked ?? this.isLiked,
     );
   }
 }

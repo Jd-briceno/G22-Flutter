@@ -2,6 +2,9 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:provider/provider.dart';
+import 'package:heroicons/heroicons.dart';
+
 import 'package:melodymuse/components/navbar.dart';
 import 'package:melodymuse/components/song_reproductor.dart';
 import 'package:melodymuse/components/shortcuts_container.dart';
@@ -10,9 +13,13 @@ import 'package:melodymuse/pages/library_screen.dart';
 import 'package:melodymuse/pages/profile.dart';
 import 'package:melodymuse/pages/social_vinyl.dart';
 import 'package:melodymuse/pages/soul_sync_terminal.dart';
+import 'package:melodymuse/pages/music_detail_screen.dart';
+
 import '../services/weather_service.dart';
 import '../models/weather_model.dart';
-import 'package:heroicons/heroicons.dart';
+import '../services/playback_manager_service.dart';
+import '../models/track_model.dart';
+
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -53,7 +60,44 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
 
     _loadWeather();
+
+    // 🔹 Cargamos demo playlist solo cuando el árbol esté listo
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadDemoPlaylist());
   }
+
+  Future<void> _loadDemoPlaylist() async {
+    final playback = context.read<PlaybackManagerService>();
+
+    if (playback.playlist.isNotEmpty) return;
+
+    playback.loadPlaylist(
+      [
+        Track(
+          title: "Vengeance",
+          artist: "Coldrain",
+          duration: "3:00",
+          durationMs: 180000,
+          albumArt: "assets/images/Coldrain.jpg",
+        ),
+        Track(
+          title: "Before I Go",
+          artist: "Machine Head",
+          duration: "3:00",
+          durationMs: 180000,
+          albumArt: "assets/images/MachineHead.jpg",
+        ),
+        Track(
+          title: "Gravity",
+          artist: "Starset",
+          duration: "3:00",
+          durationMs: 180000,
+          albumArt: "assets/images/Starset.jpg",
+        ),
+      ],
+      genre: "rock",
+    );
+  }
+
 
   Future<void> _loadWeather() async {
     try {
@@ -78,7 +122,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       setState(() {
         _locationError = true;
       });
-      debugPrint("Error: $e");
+      debugPrint("Error obteniendo clima: $e");
     }
   }
 
@@ -103,9 +147,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   List<Color> _calculateStarColors() {
-    if (_weather == null || _locationError) {
-      return [Colors.white];
-    }
+    if (_weather == null || _locationError) return [Colors.white];
 
     final hour = int.parse(DateFormat('HH').format(DateTime.now()));
     final condition = _weather!.condition.toLowerCase();
@@ -146,8 +188,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   void _startLightning() async {
     Future.doWhile(() async {
-      await Future.delayed(
-          Duration(milliseconds: 2000 + Random().nextInt(3000)));
+      await Future.delayed(Duration(milliseconds: 2000 + Random().nextInt(3000)));
       if (!mounted) return false;
       await _lightningController.forward(from: 0.0);
       return mounted &&
@@ -158,8 +199,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final playback = context.watch<PlaybackManagerService>();
+    final track = playback.currentTrack;
+    final isPlaying = playback.isPlaying;
+
     return Scaffold(
-      backgroundColor: Color(0xFF010B19),
+      backgroundColor: const Color(0xFF010B19),
       body: Stack(
         children: [
           AnimatedBuilder(
@@ -187,25 +232,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             },
           ),
 
+          // ───── Contenido ─────
           Column(
             children: [
               const SizedBox(height: 40),
-
               const Navbar(
                 username: "Jay Walker",
                 title: "Lightning Ninja",
                 profileImage: "assets/images/Jay.jpg",
               ),
-
               const SizedBox(height: 20),
+
+              // Astronauta flotante
               Expanded(
                 child: Center(
                   child: AnimatedBuilder(
                     animation: _timeController,
                     builder: (context, child) {
                       return Transform.translate(
-                        offset:
-                            Offset(0, sin(_timeController.value * 2 * pi) * 10),
+                        offset: Offset(0, sin(_timeController.value * 2 * pi) * 10),
                         child: Image.asset(
                           "assets/images/Astronaut_home.png",
                           height: MediaQuery.of(context).size.height * 1,
@@ -215,7 +260,42 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   ),
                 ),
               ),
-              _buildPlayer(),
+
+              // 🎧 Mini Reproductor sincronizado globalmente
+              GestureDetector(
+                onTap: () {
+                  final playback = context.read<PlaybackManagerService>();
+
+                  // Navegar solo si hay una canción actual cargada
+                  if (playback.currentTrack != null && playback.playlist.isNotEmpty) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => TrackDetailScreen(
+                          tracks: playback.playlist,
+                          currentIndex: playback.currentIndex,
+                          genre: playback.genre.isNotEmpty ? playback.genre : "rock",
+                        ),
+                      ),
+                    );
+                  }
+                },
+                child: SongReproductor(
+                  albumImage: (track?.albumArt != null && track!.albumArt.isNotEmpty)
+                      ? track.albumArt
+                      : "assets/images/Coldrain.jpg",
+                  songTitle: track?.title ?? "No hay canción",
+                  artistName: track?.artist ?? "Desconocido",
+                  isPlaying: isPlaying,
+                  onPlayPause: () =>
+                      isPlaying ? playback.pause() : playback.play(),
+                  onNext: playback.next,
+                  onPrevious: playback.previous,
+                ),
+              ),
+
+
+
               const SizedBox(height: 8),
               _buildShortcuts(context),
               const SizedBox(height: 20),
@@ -226,84 +306,55 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildPlayer() {
-    return SongReproductor(
-      albumImage: "assets/images/Coldrain.jpg",
-      songTitle: "Vengeance",
-      artistName: "Coldrain",
-      isPlaying: true,
-      onPlayPause: () {
-        debugPrint("Play/Pause presionado");
-      },
-      onNext: () {
-        debugPrint("Siguiente canción");
-      },
-      onPrevious: () {
-        debugPrint("Canción anterior");
-      },
+  Widget _buildShortcuts(BuildContext context) {
+    return ShortcutsContainer(
+      shortcuts: [
+        ShortcutItem(
+          icon: HeroIcons.rocketLaunch,
+          label: "Stellar Emotions",
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const SoulSyncTerminal()),
+          ),
+        ),
+        ShortcutItem(
+          icon: HeroIcons.radio,
+          label: "Star Archive",
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const LibraryScreen()),
+          ),
+        ),
+        ShortcutItem(
+          icon: HeroIcons.clipboardDocumentList,
+          label: "Captain’s Log",
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const Longbook()),
+          ),
+        ),
+        ShortcutItem(
+          icon: HeroIcons.users,
+          label: "Crew Members",
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const SocialVinylDemo()),
+          ),
+        ),
+        ShortcutItem(
+          icon: HeroIcons.userCircle,
+          label: "Command Profile",
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ProfileBackstagePage()),
+          ),
+        ),
+      ],
     );
   }
+}
 
-    Widget _buildShortcuts(BuildContext context) {
-      return ShortcutsContainer(
-        shortcuts: [
-          ShortcutItem(
-            icon: HeroIcons.rocketLaunch,
-            label: "Stellar Emotions",
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SoulSyncTerminal()),
-              );
-            },
-          ),
-          ShortcutItem(
-            icon: HeroIcons.radio,
-            label: "Star Archive",
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const LibraryScreen()),
-              );
-            },
-          ),
-          ShortcutItem(
-            icon: HeroIcons.clipboardDocumentList,
-            label: "Captain’s Log",
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const Longbook()),
-              );
-            },
-          ),
-          ShortcutItem(
-            icon: HeroIcons.users,
-            label: "Crew Members",
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SocialVinylDemo()),
-              );
-            },
-          ),
-          ShortcutItem(
-            icon: HeroIcons.userCircle,
-            label: "Command Profile",
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ProfileBackstagePage()),
-              );
-            },
-          ),
-        ],
-      );
-    }
-  }
-
-/// ───────────────────────────── Fondo: Estrellas + Rayos ─────────────────────────────
-
+/// ───────────────────────────── FONDOS Y EFECTOS ─────────────────────────────
 class _StarData {
   final Offset position;
   final double size;
@@ -323,7 +374,6 @@ class _StarData {
 class StarPainter extends CustomPainter {
   final List<Color> starColors;
   final double globalTime;
-
   static final Random _random = Random();
   static List<_StarData>? _stars;
 
@@ -346,12 +396,10 @@ class StarPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint();
-
     for (var star in _stars!) {
       double flicker = star.flickerChance < 0.2
           ? 1.0
           : 0.5 + 0.5 * sin(globalTime * star.speed + star.phase);
-
       final color = starColors[(star.hashCode) % starColors.length];
       paint.color = color.withOpacity(0.28 + flicker * 0.6);
       canvas.drawCircle(star.position, star.size, paint);
@@ -368,13 +416,11 @@ class StarPainter extends CustomPainter {
 class LightningPainter extends CustomPainter {
   final double progress;
   final Random _random = Random();
-
   LightningPainter({required this.progress});
 
   @override
   void paint(Canvas canvas, Size size) {
     if (progress < 0.2 || progress > 0.8) return;
-
     final paint = Paint()
       ..color = Colors.blueAccent.withOpacity(1 - (progress - 0.2))
       ..strokeWidth = 2
@@ -382,7 +428,6 @@ class LightningPainter extends CustomPainter {
 
     double startX = _random.nextDouble() * size.width;
     double y = 0;
-
     final path = Path()..moveTo(startX, y);
 
     while (y < size.height) {

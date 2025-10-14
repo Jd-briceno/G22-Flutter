@@ -7,6 +7,7 @@ import 'dart:io'; // 👈 necesario para exit(0)
 import 'package:flutter/services.dart'; // 👈 necesario para SystemNavigator.pop()
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 
 void main() {
   runApp(const MyApp());
@@ -52,6 +53,47 @@ class GenreSelectorPage extends StatefulWidget {
 class _GenreSelectorPageState extends State<GenreSelectorPage> {
   late final PageController _pageController;
   int _currentPage = 0;
+  final FirebaseAnalytics analytics = FirebaseAnalytics.instance;
+
+  //Desbloquear logro
+  Future<void> unlockAchievement(BuildContext context, String genreName) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final achievementsRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('achievements');
+
+    // ⚡ Evita duplicados
+    final snapshot = await achievementsRef
+        .where('target', isEqualTo: genreName)
+        .limit(1)
+        .get();
+
+    if (snapshot.docs.isEmpty) {
+      final achievement = genreAchievements[genreName]!;
+
+      await achievementsRef.add({
+        'target': genreName,
+        'title': achievement["title"],
+        'icon': achievement["icon"],
+        'unlockedAt': FieldValue.serverTimestamp(),
+      });
+
+      // 🎖️ Mostrar popup y ESPERAR a que se cierre
+      await showDialog(
+        context: context,
+        barrierDismissible: true,
+        builder: (_) => AchievementPopup(
+          genre: genreName,
+          title: achievement["title"]!,
+          iconPath: achievement["icon"]!,
+        ),
+      );
+    }
+  }
+
 
   //Desbloquear logro
   Future<void> unlockAchievement(BuildContext context, String genreName) async {
@@ -323,14 +365,29 @@ class _GenreSelectorPageState extends State<GenreSelectorPage> {
                           children: [
                             GestureDetector(
                               onTap: () async {
-                                await unlockAchievement(context, genre["name"]); // 🎖️ Espera que el usuario cierre el popup
-                                Navigator.push(
+                                await unlockAchievement(context, genre["name"]);
+
+                                // 📊 Log: el usuario tocó Explore Songs
+                                await analytics.logEvent(
+                                  name: 'explore_songs_clicked',
+                                  parameters: {
+                                    'genre': genre["name"],
+                                    'timestamp': DateTime.now().toIso8601String(),
+                                  },
+                                );
+
+                                // 🕒 Marca de inicio
+                                final startTime = DateTime.now();
+
+                                // 🚀 Navega a la playlist
+                                await Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                     builder: (context) => PlaylistScreen(
                                       genre: genre["name"],
                                       colors: List<Color>.from(genre["colors"]),
                                       fontFamily: genre["fontFamily"],
+                                      startTime: startTime,
                                     ),
                                   ),
                                 );
@@ -361,6 +418,7 @@ class _GenreSelectorPageState extends State<GenreSelectorPage> {
                                 ),
                               ),
                             ),
+
 
                             const SizedBox(height: 12),
                             Container(
@@ -440,8 +498,17 @@ class _GenreSelectorPageState extends State<GenreSelectorPage> {
                     return Transform.scale(
                       scale: scale,
                       child: GestureDetector(
-                        onTap: () {
+                        onTap: () async {
+                          final genre = genres[index % genres.length];
                           if (index % genres.length == _currentPage) {
+                            // 📊 Log: el usuario seleccionó un planeta
+                            await analytics.logEvent(
+                              name: 'genre_planet_selected',
+                              parameters: {
+                                'genre': genre["name"],
+                                'timestamp': DateTime.now().toIso8601String(),
+                              },
+                            );
                             _showPlanetPopup(genre);
                           } else {
                             _goToPage(index);

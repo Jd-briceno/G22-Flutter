@@ -5,17 +5,21 @@ import '../services/spotify_service.dart';
 import '../services/openai_service.dart';
 import '../components/track_tile.dart';
 import 'package:heroicons/heroicons.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
+
 
 class PlaylistScreen extends StatefulWidget {
   final String genre;
   final List<Color> colors;
   final String fontFamily;
+  final DateTime? startTime; // 👈 NUEVO
 
   const PlaylistScreen({
     super.key,
     required this.genre,
     required this.colors,
     required this.fontFamily,
+    this.startTime, // 👈 OPCIONAL
   });
 
   @override
@@ -26,6 +30,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
     with SingleTickerProviderStateMixin {
   int? nowPlayingIndex;
   late AnimationController _waveController;
+  final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
 
   final SpotifyService _spotifyService = SpotifyService();
   final OpenAIService _openAIService = OpenAIService();
@@ -131,7 +136,27 @@ class _PlaylistScreenState extends State<PlaylistScreen>
       totalDuration = Duration(milliseconds: durationMs);
       isLoading = false;
     });
+
+    // 👇👇👇 AGREGA ESTO AQUÍ 👇👇👇
+    if (widget.startTime != null) {
+      final endTime = DateTime.now();
+      final loadTime = endTime.difference(widget.startTime!).inMilliseconds;
+      final withinTarget = loadTime <= 8000;
+
+      await _analytics.logEvent(
+        name: 'playlist_loaded',
+        parameters: {
+          'genre': widget.genre,
+          'load_time_ms': loadTime,
+          'within_target': withinTarget ? 'true' : 'false', // ✅ string
+          'timestamp': widget.startTime!.toIso8601String(),
+        },
+      );
+
+      debugPrint("📊 Playlist loaded → genre=${widget.genre}, loadTime=${loadTime}ms, withinTarget=$withinTarget");
+    }
   }
+
 
   Future<void> _loadAIDescription() async {
     try {

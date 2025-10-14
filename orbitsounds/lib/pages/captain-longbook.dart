@@ -10,6 +10,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:melodymuse/pages/longbook_history_screen.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 
 import '../services/weather_service.dart';
 import '../models/weather_model.dart';
@@ -140,6 +141,7 @@ final List<Emotion> _allEmotions = [
 class _LongbookState extends State<Longbook> {
   Future<Weather?>? _weatherFuture;
   String? _latestConstellationEmotion;
+  final FirebaseAnalytics analytics = FirebaseAnalytics.instance;
 
   // === Notas de voz ===
   final List<String> _voiceNotes = []; // rutas locales de audios grabados
@@ -155,10 +157,28 @@ class _LongbookState extends State<Longbook> {
   @override
   void initState() {
     super.initState();
+    _logLongbookOpened();
     _initRecorder();
     _getWeatherWithLocation();
     _loadLatestSessionEmotions();
     _loadLatestConstellationEmotion();
+  }
+
+  //Cuando Abre la Longbook
+  Future<void> _logLongbookOpened() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      await analytics.logEvent(
+        name: 'longbook_opened',
+        parameters: {
+          'user_id': ?user?.uid,
+          'timestamp': DateTime.now().toIso8601String(),
+        },
+      );
+      debugPrint("📊 Analytics: longbook_opened enviado");
+    } catch (e) {
+      debugPrint("❌ Error enviando evento longbook_opened: $e");
+    }
   }
 
   //Cargar Sesión

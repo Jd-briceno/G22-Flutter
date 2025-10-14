@@ -4,6 +4,8 @@ import 'package:melodymuse/components/navbar.dart';
 import 'package:melodymuse/pages/celestial_signal.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_analytics/observer.dart';
 
 class SoulSyncTerminal extends StatefulWidget {
   const SoulSyncTerminal({Key? key}) : super(key: key);
@@ -60,6 +62,7 @@ class _SoulSyncTerminal extends State<SoulSyncTerminal>
   List<String> _selectedEmotions = []; // 📍 Registro de emociones únicas
   late AnimationController _controller;
   late Animation<double> _thumbAnimation;
+  final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
 
   static const railTop = 21.2913;
   static const railHeight = 571.797;
@@ -111,34 +114,53 @@ class _SoulSyncTerminal extends State<SoulSyncTerminal>
 
   //Crear sesión
   Future<String?> _createSessionOnExit() async {
-    if (_selectedEmotions.isEmpty) {
-      print("⚠️ No hay emociones para guardar en sesión.");
-      return null;
-    }
-
-    try {
-      final uid = _getCurrentUserId();
-      final sessionId = DateTime.now().millisecondsSinceEpoch.toString();
-
-      await FirebaseFirestore.instance
-          .collection("users")
-          .doc(uid)
-          .collection("sessions")
-          .doc(sessionId)
-          .set({
-        "sessionId": sessionId,
-        "userId": uid,
-        "emotions": _selectedEmotions,
-        "timestamp": FieldValue.serverTimestamp(),
-      });
-
-      print("✅ Sesión guardada en users/$uid/sessions/$sessionId");
-      return sessionId; // 👈 devolvemos el id
-    } catch (e) {
-      print("❌ Error al guardar sesión: $e");
-      return null;
-    }
+  if (_selectedEmotions.isEmpty) {
+    print("⚠️ No hay emociones para guardar en sesión.");
+    return null;
   }
+
+  try {
+    final uid = _getCurrentUserId();
+    final sessionId = DateTime.now().millisecondsSinceEpoch.toString();
+
+    // 🔹 Guarda la sesión en Firestore
+    await FirebaseFirestore.instance
+        .collection("users")
+        .doc(uid)
+        .collection("sessions")
+        .doc(sessionId)
+        .set({
+      "sessionId": sessionId,
+      "userId": uid,
+      "emotions": _selectedEmotions,
+      "timestamp": FieldValue.serverTimestamp(),
+    });
+
+    print("✅ Sesión guardada en users/$uid/sessions/$sessionId");
+
+    // 🔹 Registrar también en Firebase Analytics
+    try {
+      await FirebaseAnalytics.instance.logEvent(
+        name: 'session_created',
+        parameters: {
+          'session_id': sessionId,
+          'user_id': ?uid,
+          'emotion_count': _selectedEmotions.length,
+          'emotions': _selectedEmotions.join(', '),
+        },
+      );
+      print("📊 Analytics: session_created -> $sessionId");
+    } catch (e) {
+      print("⚠️ Error registrando evento en Analytics: $e");
+    }
+
+    return sessionId; // devolvemos el id
+  } catch (e) {
+    print("❌ Error al guardar sesión: $e");
+    return null;
+  }
+}
+
 
 
   // Manejo centralizado: añade a historial y guarda en Firestore (padre)
@@ -146,6 +168,18 @@ class _SoulSyncTerminal extends State<SoulSyncTerminal>
     if (emotion.isEmpty) return;
     _setSelectedEmotion(emotion);
     _saveEmotionToFirestore(emotion, source);
+
+    // 🔹 Nuevo: registrar en Analytics
+    _analytics.logEvent(
+      name: 'emotion_selected',
+      parameters: {
+        'emotion': emotion,
+        'source': source, // slider, knob1, knob2
+        'user_id': ?_getCurrentUserId(),
+      },
+    );
+
+    print("📊 Analytics: emotion_selected -> $emotion ($source)");
   }
 
   // ========================================================

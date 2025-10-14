@@ -7,6 +7,9 @@ import 'package:melodymuse/components/navbar.dart';
 import 'package:heroicons/heroicons.dart';
 import 'package:melodymuse/pages/edit_profile_screen.dart';
 import 'package:melodymuse/pages/all_achievements_screen.dart'; // 👈 importa la nueva página
+import 'package:provider/provider.dart';
+import 'package:melodymuse/services/playback_manager_service.dart';
+import 'package:melodymuse/pages/music_detail_screen.dart';
 
 class ProfileBackstagePage extends StatefulWidget {
   const ProfileBackstagePage({super.key});
@@ -154,7 +157,7 @@ class _ProfileBackstagePageState extends State<ProfileBackstagePage> {
                           const SizedBox(height: 28),
                           const SectionTitle(title: "Now Listening"),
                           const SizedBox(height: 14),
-                          _buildPlayer(),
+                          _buildPlayer(context),
                         ],
                       ),
                     ),
@@ -168,18 +171,56 @@ class _ProfileBackstagePageState extends State<ProfileBackstagePage> {
     );
   }
 
-  // 🎵 Mini reproductor
-  static Widget _buildPlayer() {
-    return MiniSongReproductor(
-      albumImage: "assets/images/Coldrain.jpg",
-      songTitle: "Vengeance",
-      artistName: "Coldrain",
-      isPlaying: true,
-      onPlayPause: () => debugPrint("Play/Pause presionado"),
-      onNext: () => debugPrint("Siguiente canción"),
-      onPrevious: () => debugPrint("Canción anterior"),
+  // 🎵 Mini reproductor sincronizado con TrackDetailScreen
+  static Widget _buildPlayer(BuildContext context) {
+    final playback = context.watch<PlaybackManagerService>();
+    final track = playback.currentTrack;
+    final isPlaying = playback.isPlaying;
+
+    // 🟡 Si no hay canción, mostrar placeholder con callbacks vacíos
+    if (track == null) {
+      return const MiniSongReproductor(
+        albumImage: "assets/images/Coldrain.jpg",
+        songTitle: "No hay canción",
+        artistName: "Desconocido",
+        isPlaying: false,
+        onPlayPause: _noop,
+        onNext: _noop,
+        onPrevious: _noop,
+      );
+    }
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => TrackDetailScreen(
+              tracks: playback.playlist,
+              currentIndex: playback.currentIndex,
+              genre: playback.genre.isNotEmpty ? playback.genre : "rock",
+            ),
+          ),
+        );
+      },
+      child: MiniSongReproductor(
+        albumImage: (track.albumArt.isNotEmpty)
+            ? track.albumArt
+            : "assets/images/Coldrain.jpg",
+        songTitle: track.title,
+        artistName: track.artist,
+        isPlaying: isPlaying,
+        onPlayPause: () =>
+            isPlaying ? playback.pause() : playback.play(),
+        onNext: playback.next,
+        onPrevious: playback.previous,
+      ),
     );
   }
+
+  // 👇 Callback vacío para evitar errores de tipo
+  static void _noop() {}
+
 
   // 🏅 Logros desde Firestore (actualizado con navegación)
   static Widget _buildAchievements(BuildContext context, String userId) {
