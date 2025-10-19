@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:melodymuse/pages/music_detail_screen.dart';
 import '../models/track_model.dart';
 import '../services/spotify_service.dart';
-import '../services/openai_service.dart';
 import '../components/track_tile.dart';
 import 'package:heroicons/heroicons.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
@@ -33,7 +32,6 @@ class _PlaylistScreenState extends State<PlaylistScreen>
   final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
 
   final SpotifyService _spotifyService = SpotifyService();
-  final OpenAIService _openAIService = OpenAIService();
 
   List<Track> tracks = [];
   bool isLoading = true;
@@ -160,9 +158,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
 
   Future<void> _loadAIDescription() async {
     try {
-      final response =
-          await _openAIService.generatePlaylistDescription(widget.genre);
-      setState(() => aiDescription = response.content);
+      _fallbackDescriptions[widget.genre] ?? "Enjoy the best of ${widget.genre} 🎶.";
     } catch (e) {
       setState(() {
         aiDescription =
@@ -278,7 +274,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                           ),
                           SizedBox(height: widget.genre == "Pop" ? 2 : 12),
                           Text(
-                            aiDescription ?? "Loading description...",
+                            _fallbackDescriptions[widget.genre] ?? "Enjoy the best of ${widget.genre} 🎶.",
                             style: const TextStyle(
                               fontSize: 16,
                               color: Colors.white70,

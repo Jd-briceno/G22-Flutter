@@ -28,6 +28,7 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
     final data = {
       "email": widget.user.email,
       "createdAt": DateTime.now(),
+      "profileStage": "interests_done", // 👈 Nuevo campo que marca progreso
       if (!skip) "interests": selectedInterests,
     };
 

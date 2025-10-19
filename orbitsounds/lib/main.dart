@@ -8,6 +8,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_analytics/observer.dart';
+import 'package:melodymuse/database/local_db.dart';
+import 'package:melodymuse/services/hive_service.dart';
 import 'firebase_options.dart';
 
 // 🔹 Provider y servicios
@@ -37,9 +39,20 @@ Future<void> main() async {
 
   _setupGlobalErrorHandlers();
   await _ensureFirebase();
+  // Inicializa almacenamiento local (Hive + SQLite)
+  await HiveService.init();
+  await LocalDB.database;
+  print("💾 Hive y SQLite inicializados correctamente.");
+
+  print("🕒 Esperando restauración de sesión de FirebaseAuth...");
+  // 👇 Espera a que FirebaseAuth restaure sesión antes de arrancar la app
+  await FirebaseAuth.instance.authStateChanges().firstWhere((_) => true);
+  print("✅ Sesión restaurada o confirmada.");
 
   runZonedGuarded(() async {
-    print('🧠 Entrando en runZonedGuarded -> runApp');
+    FirebaseAuth.instance.authStateChanges().listen((user) {
+      debugPrint("📡 authStateChanges emitió nuevo valor (desde listener global): $user");
+    });
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final notificationService = NotificationService();
@@ -119,17 +132,50 @@ Future<void> _ensureFirebase() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  Future<String> _checkUserState(User user) async {
-    final doc = await FirebaseFirestore.instance.collection("users").doc(user.uid).get();
+    Future<String> _checkUserState(User user) async {
+    print("🔍 Verificando estado del usuario ${user.uid}...");
+    final docRef = FirebaseFirestore.instance.collection("users").doc(user.uid);
 
-    if (!doc.exists) return "noProfile";
-    final data = doc.data() ?? {};
-    if (!data.containsKey("nickname")) return "incomplete";
-    return "complete";
+    for (int i = 0; i < 5; i++) {
+      try {
+        final doc = await docRef.get(const GetOptions(source: Source.server));
+        if (doc.exists) {
+          final data = doc.data() ?? {};
+          print("📦 Datos Firestore del usuario: $data");
+
+          final stage = data['profileStage'] ?? 'created';
+          final hasNickname =
+              data.containsKey("nickname") && (data["nickname"] as String?)?.isNotEmpty == true;
+          final hasInterests =
+              data.containsKey("interests") && (data["interests"] as List).isNotEmpty;
+
+          if (stage == 'created' || !hasInterests) {
+            return "noProfile"; // → CompleteProfilePage
+          }
+          if (!hasNickname) {
+            return "incomplete"; // → FinalDetailsPage
+          }
+          return "complete"; // → HomeScreen
+        } else {
+          print("⚠️ Intento ${i + 1}: documento aún no existe en Firestore...");
+        }
+      } catch (e, st) {
+        print("🔥 Error al leer usuario (intento ${i + 1}): $e\n$st");
+      }
+
+      await Future.delayed(const Duration(milliseconds: 300));
+    }
+
+    print("⏰ No se encontró documento tras varios intentos → noProfile");
+    return "noProfile";
   }
+
+
 
   @override
   Widget build(BuildContext context) {
+    print("🧩 Construyendo MyApp...");
+
     return ChangeNotifierProvider.value(
       value: PlaybackManagerService(),
       child: MaterialApp(
@@ -137,36 +183,61 @@ class MyApp extends StatelessWidget {
         title: 'MelodyMuse',
         theme: ThemeData.dark(),
         navigatorObservers: [
-          FirebaseAnalyticsObserver(analytics: analytics), // 👈 importante para screen_view
+          FirebaseAnalyticsObserver(analytics: analytics),
         ],
         home: StreamBuilder<User?>(
           stream: FirebaseAuth.instance.authStateChanges(),
           builder: (context, snapshot) {
+            debugPrint("📡 [StreamBuilder] snapshot.connectionState = ${snapshot.connectionState}");
+            debugPrint("📡 [StreamBuilder] snapshot.hasData = ${snapshot.hasData}");
+            debugPrint("📡 [StreamBuilder] snapshot.data = ${snapshot.data}");
+            debugPrint("👀 [DEBUG] snapshot.data: ${snapshot.data}");
             if (snapshot.connectionState == ConnectionState.waiting) {
+              print("⏳ Esperando conexión de FirebaseAuth...");
               return const Scaffold(
                 body: Center(child: CircularProgressIndicator()),
               );
             }
 
             final user = snapshot.data;
-            if (user == null) return LoginPage();
+
+            if (user == null) {
+              print("👤 Usuario no autenticado → Mostrando LoginPage");
+              return const LoginPage();
+            }
+
+            print("✅ Usuario autenticado detectado: ${user.email} (${user.uid})");
 
             return FutureBuilder<String>(
               future: _checkUserState(user),
               builder: (context, snap) {
                 if (snap.connectionState == ConnectionState.waiting) {
+                  print("⏳ Esperando Firestore para usuario ${user.uid}...");
                   return const Scaffold(
                     body: Center(child: CircularProgressIndicator()),
                   );
                 }
+
+                if (snap.hasError) {
+                  print("❌ Error en FutureBuilder: ${snap.error}");
+                  return const Scaffold(
+                    body: Center(child: Text("Error cargando usuario")),
+                  );
+                }
+
+                print("🧭 Resultado del _checkUserState: ${snap.data}");
 
                 switch (snap.data) {
                   case "noProfile":
                     return CompleteProfilePage(user: user);
                   case "incomplete":
                     return FinalDetailsPage(user: user);
-                  default:
+                  case "complete":
                     return const HomeScreen();
+                  default:
+                    return const Scaffold(
+                      body: Center(child: Text("Error: estado desconocido")),
+                    );
                 }
               },
             );

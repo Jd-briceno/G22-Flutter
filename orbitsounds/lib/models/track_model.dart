@@ -1,8 +1,8 @@
 class Track {
   final String title;
   final String artist;
-  final String duration;   // formatted string "3:45"
-  final int durationMs;    // raw milliseconds
+  final String duration; // formatted string "3:45"
+  final int durationMs;  // raw milliseconds
   final String albumArt;
   final String? previewUrl; // optional, for 30s preview playback
   bool isLiked; // ✅ Nuevo campo para controlar el "like"
@@ -14,7 +14,7 @@ class Track {
     required this.durationMs,
     required this.albumArt,
     this.previewUrl,
-    this.isLiked = false, // valor inicial por defecto
+    this.isLiked = false,
   });
 
   factory Track.fromSpotify(Map<String, dynamic> json) {
@@ -37,7 +37,33 @@ class Track {
       durationMs: durationMs,
       albumArt: albumArtUrl,
       previewUrl: json['preview_url'],
-      isLiked: false, // 🔹 Inicialmente no le gusta
+      isLiked: false,
+    );
+  }
+
+  // ✅ Método para convertir el objeto en un Map (para enviar a Isolate o guardar)
+  Map<String, dynamic> toMap() {
+    return {
+      'title': title,
+      'artist': artist,
+      'duration': duration,
+      'durationMs': durationMs,
+      'albumArt': albumArt,
+      'previewUrl': previewUrl,
+      'isLiked': isLiked,
+    };
+  }
+
+  // ✅ Método inverso para reconstruir el objeto desde un Map
+  factory Track.fromMap(Map<String, dynamic> map) {
+    return Track(
+      title: map['title'] ?? '',
+      artist: map['artist'] ?? '',
+      duration: map['duration'] ?? '',
+      durationMs: map['durationMs'] ?? 0,
+      albumArt: map['albumArt'] ?? '',
+      previewUrl: map['previewUrl'],
+      isLiked: map['isLiked'] ?? false,
     );
   }
 

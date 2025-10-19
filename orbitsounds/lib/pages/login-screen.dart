@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:melodymuse/main.dart';
 import 'package:melodymuse/pages/signup_screen.dart';
 import 'package:melodymuse/services/auth_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -19,6 +21,7 @@ class _LoginPageState extends State<LoginPage> {
   bool obscurePass = true;
   bool emailFocused = false;
   bool passFocused = false;
+  bool isLoading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -35,7 +38,7 @@ class _LoginPageState extends State<LoginPage> {
             children: [
               const SizedBox(height: 60),
 
-              // 🔹 Logo (placeholder)
+              // 🔹 Logo
               Image.asset(
                 "assets/images/LogoTentative.png",
                 width: 200,
@@ -44,7 +47,6 @@ class _LoginPageState extends State<LoginPage> {
 
               const SizedBox(height: 24),
 
-              // 🔹 Título
               const Text(
                 "Login to Your Account",
                 style: TextStyle(
@@ -59,22 +61,15 @@ class _LoginPageState extends State<LoginPage> {
 
               // 🔹 Email Field
               Focus(
-                onFocusChange: (focused) {
-                  setState(() => emailFocused = focused);
-                },
+                onFocusChange: (focused) => setState(() => emailFocused = focused),
                 child: TextField(
                   controller: emailCtrl,
                   decoration: InputDecoration(
-                    prefixIcon: const Icon(Icons.email_outlined,
-                        color: Colors.white70),
+                    prefixIcon: const Icon(Icons.email_outlined, color: Colors.white70),
                     labelText: "Your Email",
-                    labelStyle: const TextStyle(
-                      fontFamily: "RobotoMono",
-                      color: Colors.white70,
-                    ),
+                    labelStyle: const TextStyle(fontFamily: "RobotoMono", color: Colors.white70),
                     filled: true,
-                    fillColor:
-                        emailFocused ? focusColor.withOpacity(0.3) : baseColor,
+                    fillColor: emailFocused ? focusColor.withOpacity(0.3) : baseColor,
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
                       borderSide: BorderSide(color: baseColor),
@@ -84,10 +79,7 @@ class _LoginPageState extends State<LoginPage> {
                       borderSide: BorderSide(color: focusColor, width: 2),
                     ),
                   ),
-                  style: const TextStyle(
-                    fontFamily: "RobotoMono",
-                    color: Colors.white,
-                  ),
+                  style: const TextStyle(fontFamily: "RobotoMono", color: Colors.white),
                 ),
               ),
 
@@ -95,34 +87,23 @@ class _LoginPageState extends State<LoginPage> {
 
               // 🔹 Password Field
               Focus(
-                onFocusChange: (focused) {
-                  setState(() => passFocused = focused);
-                },
+                onFocusChange: (focused) => setState(() => passFocused = focused),
                 child: TextField(
                   controller: passCtrl,
                   obscureText: obscurePass,
                   decoration: InputDecoration(
-                    prefixIcon: const Icon(Icons.lock_outline,
-                        color: Colors.white70),
+                    prefixIcon: const Icon(Icons.lock_outline, color: Colors.white70),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        obscurePass
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
+                        obscurePass ? Icons.visibility_off_outlined : Icons.visibility_outlined,
                         color: Colors.white70,
                       ),
-                      onPressed: () {
-                        setState(() => obscurePass = !obscurePass);
-                      },
+                      onPressed: () => setState(() => obscurePass = !obscurePass),
                     ),
                     labelText: "Password",
-                    labelStyle: const TextStyle(
-                      fontFamily: "RobotoMono",
-                      color: Colors.white70,
-                    ),
+                    labelStyle: const TextStyle(fontFamily: "RobotoMono", color: Colors.white70),
                     filled: true,
-                    fillColor:
-                        passFocused ? focusColor.withOpacity(0.3) : baseColor,
+                    fillColor: passFocused ? focusColor.withOpacity(0.3) : baseColor,
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14),
                       borderSide: BorderSide(color: baseColor),
@@ -132,41 +113,24 @@ class _LoginPageState extends State<LoginPage> {
                       borderSide: BorderSide(color: focusColor, width: 2),
                     ),
                   ),
-                  style: const TextStyle(
-                    fontFamily: "RobotoMono",
-                    color: Colors.white,
-                  ),
+                  style: const TextStyle(fontFamily: "RobotoMono", color: Colors.white),
                 ),
               ),
 
               const SizedBox(height: 16),
 
-              // 🔹 Remember me centrado
+              // 🔹 Remember me
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Theme(
-                    data: Theme.of(context).copyWith(
-                      checkboxTheme: CheckboxThemeData(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                      ),
-                    ),
-                    child: Checkbox(
-                      value: rememberMe,
-                      activeColor: focusColor,
-                      onChanged: (val) {
-                        setState(() => rememberMe = val ?? false);
-                      },
-                    ),
+                  Checkbox(
+                    value: rememberMe,
+                    activeColor: focusColor,
+                    onChanged: (val) => setState(() => rememberMe = val ?? false),
                   ),
                   const Text(
                     "Remember me",
-                    style: TextStyle(
-                      fontFamily: "RobotoMono",
-                      color: Colors.white,
-                    ),
+                    style: TextStyle(fontFamily: "RobotoMono", color: Colors.white),
                   ),
                 ],
               ),
@@ -177,17 +141,23 @@ class _LoginPageState extends State<LoginPage> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () async {
-                    User? user = await _authService.signInWithEmail(
-                      emailCtrl.text.trim(),
-                      passCtrl.text.trim(),
-                    );
-                    if (user == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Error al iniciar sesión")),
-                      );
-                    }
-                  },
+                  onPressed: isLoading
+                      ? null
+                      : () async {
+                          setState(() => isLoading = true);
+                          final user = await _authService.signInWithEmail(
+                            emailCtrl.text.trim(),
+                            passCtrl.text.trim(),
+                          );
+                          setState(() => isLoading = false);
+
+                          if (user == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text("Error al iniciar sesión")),
+                            );
+                          }
+                          // ✅ No navegamos manualmente, StreamBuilder lo hará
+                        },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: focusColor,
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -195,38 +165,36 @@ class _LoginPageState extends State<LoginPage> {
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  child: const Text(
-                    "Sign In",
-                    style: TextStyle(
-                      fontFamily: "RobotoMono",
-                      fontSize: 16,
-                      color: Colors.white,
-                    ),
-                  ),
+                  child: isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text(
+                          "Sign In",
+                          style: TextStyle(
+                            fontFamily: "RobotoMono",
+                            fontSize: 16,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ),
 
               const SizedBox(height: 16),
 
-              // 🔹 Forgot Password centrado
-              Center(
-                child: TextButton(
-                  onPressed: () {
-                    // 🔹 aquí luego puedes implementar recuperación de contraseña
-                  },
-                  child: const Text(
-                    "Forgot Password?",
-                    style: TextStyle(
-                      fontFamily: "RobotoMono",
-                      color: Colors.white70,
-                    ),
-                  ),
+              // 🔹 Forgot Password
+              TextButton(
+                onPressed: () {},
+                child: const Text(
+                  "Forgot Password?",
+                  style: TextStyle(fontFamily: "RobotoMono", color: Colors.white70),
                 ),
               ),
 
               const SizedBox(height: 16),
 
-              // 🔹 Divider with text
               Row(
                 children: const [
                   Expanded(child: Divider(color: Colors.white30, thickness: 1)),
@@ -234,10 +202,7 @@ class _LoginPageState extends State<LoginPage> {
                     padding: EdgeInsets.symmetric(horizontal: 8.0),
                     child: Text(
                       "or continue with",
-                      style: TextStyle(
-                        fontFamily: "RobotoMono",
-                        color: Colors.white70,
-                      ),
+                      style: TextStyle(fontFamily: "RobotoMono", color: Colors.white70),
                     ),
                   ),
                   Expanded(child: Divider(color: Colors.white30, thickness: 1)),
@@ -246,48 +211,80 @@ class _LoginPageState extends State<LoginPage> {
 
               const SizedBox(height: 24),
 
-              // 🔹 Social buttons (Google, Apple, Spotify)
+              // 🔹 Social Buttons
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   _socialButton(
                     asset: "assets/images/google.png",
-                    onTap: () async => await _authService.signInWithGoogle(),
+                    onTap: () async {
+                      setState(() => isLoading = true);
+                      final user = await _authService.signInWithGoogle();
+                      setState(() => isLoading = false);
+
+                      if (user == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Error al iniciar sesión con Google")),
+                        );
+                        return;
+                      }
+
+                      debugPrint("✅ Login con Google completado: ${user.email}");
+
+                      // 👇 Espera que FirebaseAuth propague el cambio
+                      await FirebaseAuth.instance.authStateChanges().firstWhere((u) => u != null);
+
+                      // 👇 Ahora fuerza rebuild global (MyApp volverá a ejecutarse)
+                      if (mounted) {
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(builder: (_) => const MyApp()),
+                        );
+                      }
+                    },
                   ),
+
+
+
                   _socialButton(
                     asset: "assets/images/apple.png",
                     onTap: () async {
-                      // Apple login aquí
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Apple Sign-In próximamente")),
+                      );
                     },
                   ),
                   _socialButton(
                     asset: "assets/images/spotify-logo.png",
-                    onTap: () async =>
-                        await _authService.signInWithSpotifySimulated(),
+                    onTap: () async {
+                      setState(() => isLoading = true);
+                      final user = await _authService.signInWithSpotifySimulated();
+                      setState(() => isLoading = false);
+
+                      if (user == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Error al iniciar sesión con Spotify")),
+                        );
+                      }
+                    },
                   ),
                 ],
               ),
 
               const SizedBox(height: 32),
 
-              // 🔹 Sign Up link (lleva a la página de registro)
+              // 🔹 Sign Up link
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Text(
                     "Don’t have an account? ",
-                    style: TextStyle(
-                      fontFamily: "RobotoMono",
-                      color: Colors.white70,
-                    ),
+                    style: TextStyle(fontFamily: "RobotoMono", color: Colors.white70),
                   ),
                   GestureDetector(
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(
-                          builder: (_) => const SignUpPage(),
-                        ),
+                        MaterialPageRoute(builder: (_) => const SignUpPage()),
                       );
                     },
                     child: const Text(
@@ -308,10 +305,10 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  /// 🔹 Widget helper para botones sociales con íconos de assets
+  /// 🔹 Helper para botones sociales
   Widget _socialButton({required String asset, required VoidCallback onTap}) {
     return InkWell(
-      onTap: onTap,
+      onTap: isLoading ? null : onTap,
       borderRadius: BorderRadius.circular(14),
       child: Container(
         width: 88,
@@ -321,11 +318,7 @@ class _LoginPageState extends State<LoginPage> {
           borderRadius: BorderRadius.circular(14),
         ),
         child: Center(
-          child: Image.asset(
-            asset,
-            width: 32,
-            height: 32,
-          ),
+          child: Image.asset(asset, width: 32, height: 32),
         ),
       ),
     );

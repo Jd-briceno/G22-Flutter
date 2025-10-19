@@ -33,6 +33,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Weather? _weather;
   bool _locationError = false;
 
+  @override
+  void dispose() {
+    _timeController.dispose();
+    _colorController.dispose();
+    _lightningController.dispose();
+    super.dispose();
+  }
+
   late AnimationController _timeController;
   late AnimationController _colorController;
   late AnimationController _lightningController;
