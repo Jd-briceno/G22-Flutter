@@ -118,6 +118,7 @@ class _FinalDetailsPageState extends State<FinalDetailsPage> {
       imageUrl = await _saveImageLocally(_profileImage!);
     }
 
+    // 🧩 Datos del usuario con título inicial
     final data = {
       "fullName": _fullNameController.text.trim(),
       "nickname": _nicknameController.text.trim(),

@@ -95,6 +95,46 @@ class _GenreSelectorPageState extends State<GenreSelectorPage> {
   }
 
 
+  //Desbloquear logro
+  Future<void> unlockAchievement(BuildContext context, String genreName) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final achievementsRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('achievements');
+
+    // ⚡ Evita duplicados
+    final snapshot = await achievementsRef
+        .where('target', isEqualTo: genreName)
+        .limit(1)
+        .get();
+
+    if (snapshot.docs.isEmpty) {
+      final achievement = genreAchievements[genreName]!;
+
+      await achievementsRef.add({
+        'target': genreName,
+        'title': achievement["title"],
+        'icon': achievement["icon"],
+        'unlockedAt': FieldValue.serverTimestamp(),
+      });
+
+      // 🎖️ Mostrar popup y ESPERAR a que se cierre
+      await showDialog(
+        context: context,
+        barrierDismissible: true,
+        builder: (_) => AchievementPopup(
+          genre: genreName,
+          title: achievement["title"]!,
+          iconPath: achievement["icon"]!,
+        ),
+      );
+    }
+  }
+
+
   final List<Map<String, dynamic>> genres = [
     {
       "name": Genres.medieval,

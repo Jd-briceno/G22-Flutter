@@ -3,8 +3,10 @@
 
     <!-- 🌍 Permisos básicos -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
-    <!-- 📍 Ubicación / Bluetooth (si los usas en tu app) -->
+    <!-- 📍 Ubicación / Bluetooth -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
@@ -14,15 +16,15 @@
     <uses-permission android:name="android.permission.CAMERA" />
 
     <!-- 🖼️ Archivos e imágenes -->
-    <!-- Para Android 12 y menores -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="29"
         tools:ignore="ScopedStorage" />
 
-    <!-- Para Android 13 (API 33+) -->
+    <!-- 📱 Android 13+ -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:label="melodymuse"
@@ -49,7 +51,11 @@
             </intent-filter>
         </activity>
 
-        <!-- Don't delete this meta-data -->
+        <!-- 🔔 Canal de notificación por defecto -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="general_channel" />
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />

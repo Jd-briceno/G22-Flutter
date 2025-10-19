@@ -1,10 +1,8 @@
 plugins {
     id("com.android.application")
-    id("kotlin-android")
-    // El plugin de Flutter
-    id("dev.flutter.flutter-gradle-plugin")
-    // 🔹 IMPORTANTE: Plugin de Google Services
-    id("com.google.gms.google-services")
+    id("org.jetbrains.kotlin.android") // mejor práctica para Kotlin DSL
+    id("dev.flutter.flutter-gradle-plugin") // plugin de Flutter
+    id("com.google.gms.google-services") // Firebase
 }
 
 android {
@@ -15,6 +13,9 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+
+        // ✅ Sintaxis correcta en Kotlin DSL
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -23,7 +24,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.melodymuse"
-        minSdk = 24   // Firebase Auth requiere minSdk 23
+        minSdk = 24 // Firebase Auth requiere minSdk 23 o superior
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -41,10 +42,13 @@ flutter {
 }
 
 dependencies {
-    // 🔹 BOM de Firebase (maneja versiones compatibles)
+    // 🔹 BOM de Firebase (controla las versiones automáticamente)
     implementation(platform("com.google.firebase:firebase-bom:34.3.0"))
 
-    // 🔹 Firebase básico
+    // 🔹 Dependencias de Firebase
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-auth")
+
+    // ✅ Desugaring (sintaxis Kotlin DSL)
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }
