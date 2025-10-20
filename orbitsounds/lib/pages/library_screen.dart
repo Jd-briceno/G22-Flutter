@@ -1,6 +1,7 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:melodymuse/components/vinyl_cover.dart';
-import 'package:melodymuse/pages/create_playlist_screen.dart';
+import 'package:melodymuse/pages/ares_recommendations_screen.dart';
 import '../components/search_bar.dart';
 import '../components/navbar.dart';
 import '../models/track_model.dart';
@@ -19,10 +20,14 @@ class LibraryScreen extends StatefulWidget {
 class _LibraryScreenState extends State<LibraryScreen>
     with AutomaticKeepAliveClientMixin {
   final SpotifyService _spotifyService = SpotifyService();
-  List<Track> _songs = [];
+
+  /// 🔹 StreamController para resultados de búsqueda (permite actualizaciones reactivas)
+  final StreamController<List<Track>> _searchStream =
+      StreamController<List<Track>>.broadcast();
+
   bool _loading = false;
 
-  // 🎨 Estilos centralizados (reusables)
+  // 🎨 Estilos centralizados
   static final TextStyle _sectionTitleStyle = GoogleFonts.encodeSansExpanded(
     color: const Color(0XFFE9E8EE),
     fontSize: 20,
@@ -40,7 +45,6 @@ class _LibraryScreenState extends State<LibraryScreen>
     fontSize: 12,
   );
 
-  /// Simulación de playlists
   final _djRecommendations = const [
     {"title": "Hunting soul", "cover": "assets/images/Hunting.jpg"},
     {"title": "Ruined King", "cover": "assets/images/Ruined.jpg"},
@@ -71,16 +75,32 @@ class _LibraryScreenState extends State<LibraryScreen>
     },
   ];
 
+  /// 🔍 Búsqueda de canciones (usa Future + handler + async/await + Stream)
   Future<void> _searchSongs(String query) async {
     if (query.isEmpty) return;
+    _searchStream.add([]); // limpiar resultados previos
     setState(() => _loading = true);
 
-    final results = await _spotifyService.searchTracks(query);
+    try {
+      // 🔹 Future con async/await
+      final results = await _spotifyService.searchTracks(query);
+      // 🔹 Enviamos los resultados al Stream
+      _searchStream.add(results);
+    } catch (e) {
+      // 🔹 Handler de error
+      debugPrint("❌ Error buscando canciones: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Error buscando canciones")),
+      );
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
 
-    setState(() {
-      _songs = results;
-      _loading = false;
-    });
+  @override
+  void dispose() {
+    _searchStream.close();
+    super.dispose();
   }
 
   @override
@@ -88,7 +108,7 @@ class _LibraryScreenState extends State<LibraryScreen>
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // necesario por AutomaticKeepAliveClientMixin
+    super.build(context);
 
     return Scaffold(
       backgroundColor: const Color(0xFF010B19),
@@ -98,7 +118,6 @@ class _LibraryScreenState extends State<LibraryScreen>
             : const ClampingScrollPhysics(),
         slivers: [
           const SliverToBoxAdapter(child: SizedBox(height: 40)),
-
           const SliverToBoxAdapter(
             child: Navbar(
               username: "Jay Walker",
@@ -107,7 +126,6 @@ class _LibraryScreenState extends State<LibraryScreen>
               subtitle: "Vinyl Library",
             ),
           ),
-
           const SliverToBoxAdapter(child: SizedBox(height: 2)),
 
           // 🔎 Barra de búsqueda
@@ -120,33 +138,38 @@ class _LibraryScreenState extends State<LibraryScreen>
 
           const SliverToBoxAdapter(child: SizedBox(height: 5)),
 
-          // 🎶 Resultados búsqueda
-          if (_loading)
-            const SliverToBoxAdapter(
-              child: Center(
-                child: Padding(
-                  padding: EdgeInsets.all(20.0),
-                  child: CircularProgressIndicator(color: Color(0XFFE9E8EE)),
+          // 🎶 Resultados de búsqueda usando StreamBuilder
+          StreamBuilder<List<Track>>(
+            stream: _searchStream.stream,
+            builder: (context, snapshot) {
+              if (_loading) {
+                return const SliverToBoxAdapter(
+                  child: Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(20.0),
+                      child: CircularProgressIndicator(color: Color(0XFFE9E8EE)),
+                    ),
+                  ),
+                );
+              }
+
+              final songs = snapshot.data ?? [];
+              if (songs.isEmpty) return const SliverToBoxAdapter(child: SizedBox());
+
+              return SliverToBoxAdapter(
+                child: SizedBox(
+                  height: 180,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    cacheExtent: 500,
+                    itemCount: songs.length,
+                    itemBuilder: (_, i) => _SongResultCard(song: songs[i]),
+                  ),
                 ),
-              ),
-            )
-          else if (_songs.isNotEmpty)
-            SliverToBoxAdapter(
-              child: SizedBox(
-                height: 180,
-                child: ListView.builder(
-                  physics: const BouncingScrollPhysics(),
-                  scrollDirection: Axis.horizontal,
-                  cacheExtent: 500, // 🔥 cachea items fuera de pantalla
-                  addRepaintBoundaries: true,
-                  itemCount: _songs.length,
-                  itemBuilder: (context, index) {
-                    final song = _songs[index];
-                    return _SongResultCard(song: song);
-                  },
-                ),
-              ),
-            ),
+              );
+            },
+          ),
 
           // 📂 Library Header
           SliverToBoxAdapter(
@@ -163,12 +186,12 @@ class _LibraryScreenState extends State<LibraryScreen>
                         onPressed: () async {
                           final newPlaylist = await Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (_) => const CreatePlaylistScreen()),
+                            MaterialPageRoute(
+                              builder: (_) => const AresRecommendationsScreen(),
+                            ),
                           );
-
                           if (newPlaylist != null) {
-                            // 🔥 Aquí puedes guardar en Firestore
-                            print("Nueva playlist creada: ${newPlaylist.title}");
+                            debugPrint("Nueva playlist creada: ${newPlaylist.title}");
                           }
                         },
                         icon: const HeroIcon(
@@ -177,13 +200,10 @@ class _LibraryScreenState extends State<LibraryScreen>
                           size: 28,
                         ),
                       ),
-                      IconButton(
-                        onPressed: () {},
-                        icon: const HeroIcon(
-                          HeroIcons.ellipsisVertical,
-                          color: Color(0XFFE9E8EE),
-                          size: 28,
-                        ),
+                      const HeroIcon(
+                        HeroIcons.ellipsisVertical,
+                        color: Color(0XFFE9E8EE),
+                        size: 28,
                       ),
                     ],
                   ),
@@ -192,7 +212,7 @@ class _LibraryScreenState extends State<LibraryScreen>
             ),
           ),
 
-          // 📂 Secciones
+          // 📂 Secciones de playlists
           _PlaylistSection(
               title: "✨ Starlight Suggestions", playlists: _myPlaylists),
           _PlaylistSection(
@@ -209,7 +229,7 @@ class _LibraryScreenState extends State<LibraryScreen>
   }
 }
 
-/// 🎶 Card para resultados de canciones
+/// 🎶 Card de resultados
 class _SongResultCard extends StatelessWidget {
   final Track song;
   const _SongResultCard({required this.song});
@@ -217,15 +237,11 @@ class _SongResultCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textStyle = _LibraryScreenState._songTextStyle;
-
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: Column(
         children: [
-          // 🔥 Cacheamos el vinilo + portada
-          RepaintBoundary(
-            child: VinylWithCover(albumArt: song.albumArt),
-          ),
+          RepaintBoundary(child: VinylWithCover(albumArt: song.albumArt)),
           const SizedBox(height: 6),
           SizedBox(
             width: 100,
@@ -243,11 +259,10 @@ class _SongResultCard extends StatelessWidget {
   }
 }
 
-/// 📂 Sección de playlists (horizontal scroll)
+/// 📂 Sección de playlists
 class _PlaylistSection extends StatelessWidget {
   final String title;
   final List<Map<String, String>> playlists;
-
   const _PlaylistSection({required this.title, required this.playlists});
 
   @override
@@ -267,20 +282,16 @@ class _PlaylistSection extends StatelessWidget {
           SizedBox(
             height: 160,
             child: ListView.builder(
-              physics: const BouncingScrollPhysics(),
               scrollDirection: Axis.horizontal,
-              cacheExtent: 500, // 🔥 cachea items fuera de pantalla
-              addRepaintBoundaries: true,
+              cacheExtent: 500,
               itemCount: playlists.length,
               itemBuilder: (context, index) {
                 final playlist = playlists[index];
                 final cover = playlist["cover"]!;
-
                 return Padding(
                   padding: const EdgeInsets.all(8.0),
                   child: Column(
                     children: [
-                      // ✅ Usa CachedNetworkImage solo si es URL
                       cover.startsWith("http")
                           ? SizedBox(
                               width: 100,
@@ -288,9 +299,9 @@ class _PlaylistSection extends StatelessWidget {
                               child: CachedNetworkImage(
                                 imageUrl: cover,
                                 placeholder: (_, __) => const Center(
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Color(0XFFE9E8EE))),
+                                  child: CircularProgressIndicator(
+                                      strokeWidth: 2, color: Color(0XFFE9E8EE)),
+                                ),
                                 errorWidget: (_, __, ___) =>
                                     const Icon(Icons.error, color: Colors.red),
                                 fit: BoxFit.cover,

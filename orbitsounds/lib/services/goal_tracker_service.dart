@@ -445,7 +445,7 @@ Future<void> registerSongPlayed(String genre) async {
       await _unlockAchievement(
         userId,
         type: 'global_like50',
-        title: "💗 Passionate Listener",
+        title: "Ask for a Wish",
         icon: 'assets/medals/like_50.png',
         body: "Has marcado 50 canciones como favoritas 💕",
       );

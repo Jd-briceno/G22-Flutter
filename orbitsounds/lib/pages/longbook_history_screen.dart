@@ -40,7 +40,27 @@ class _LongbookHistoryPageState extends State<LongbookHistoryPage> {
         _selectedRange = picked;
         _isLoading = true;
       });
-      await _fetchSessionsInRange();
+
+      // 🔹 Uso combinado: Future con handler (.then, .catchError)
+      _fetchSessionsInRange().then((_) {
+        // ✅ Se ejecuta si todo va bien
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Sesiones cargadas correctamente ✅"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }).catchError((error) {
+        // ⚠️ Se ejecuta si hay un error
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error al cargar sesiones: $error"),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      });
     }
   }
 

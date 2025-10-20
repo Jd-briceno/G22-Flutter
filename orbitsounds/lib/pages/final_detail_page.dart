@@ -3,12 +3,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:melodymuse/components/achivement_popup.dart'; // 👈 importa el popup
+import 'package:melodymuse/components/achivement_popup.dart';
 import 'package:melodymuse/pages/complete_profile_page.dart';
 import 'package:melodymuse/pages/home_screen.dart';
 import 'package:heroicons/heroicons.dart';
 import 'package:country_picker/country_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:melodymuse/database/local_db.dart';
+import 'package:melodymuse/services/hive_service.dart';
 
 class FinalDetailsPage extends StatefulWidget {
   final User user;
@@ -57,7 +60,14 @@ class _FinalDetailsPageState extends State<FinalDetailsPage> {
     }
   }
 
-  /// 🎖️ Mostrar popup de logro inicial
+  Future<String> _saveImageLocally(File image) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final path =
+        '${dir.path}/profile_${DateTime.now().millisecondsSinceEpoch}.jpg';
+    final newImage = await image.copy(path);
+    return newImage.path;
+  }
+
   Future<void> unlockInitialAchievement(BuildContext context) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -67,7 +77,6 @@ class _FinalDetailsPageState extends State<FinalDetailsPage> {
         .doc(user.uid)
         .collection('achievements');
 
-    // ⚡ Evita duplicados
     final snapshot = await achievementsRef
         .where('target', isEqualTo: 'Profile Completed')
         .limit(1)
@@ -77,11 +86,10 @@ class _FinalDetailsPageState extends State<FinalDetailsPage> {
       await achievementsRef.add({
         'target': 'Profile Completed',
         'title': 'Cadet',
-        'icon': 'assets/medals/cadet.png', // 👈 ícono que usarás para este logro
+        'icon': 'assets/medals/cadet.png',
         'unlockedAt': FieldValue.serverTimestamp(),
       });
 
-      // 🎖️ Mostrar popup y esperar que se cierre
       await showDialog(
         context: context,
         barrierDismissible: true,
@@ -107,7 +115,7 @@ class _FinalDetailsPageState extends State<FinalDetailsPage> {
 
     String? imageUrl;
     if (_profileImage != null) {
-      imageUrl = _profileImage!.path;
+      imageUrl = await _saveImageLocally(_profileImage!);
     }
 
     // 🧩 Datos del usuario con título inicial
@@ -127,13 +135,16 @@ class _FinalDetailsPageState extends State<FinalDetailsPage> {
       "title": "Cadet",
       "createdAt": DateTime.now(),
       "updatedAt": DateTime.now().toIso8601String(),
+      "profileStage": "complete",
     };
 
+    // 🔹 Guarda en Firestore
     await FirebaseFirestore.instance
         .collection("users")
         .doc(widget.user.uid)
         .set(data, SetOptions(merge: true));
 
+    // 🔹 Guarda en SharedPreferences
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString("fullName", (data["fullName"] ?? "").toString());
     await prefs.setString("nickname", (data["nickname"] ?? "").toString());
@@ -141,21 +152,36 @@ class _FinalDetailsPageState extends State<FinalDetailsPage> {
     await prefs.setString("gender", (data["gender"] ?? "").toString());
     await prefs.setString("profileImageUrl", (data["profileImageUrl"] ?? "").toString());
     await prefs.setString("title", (data["title"] ?? "Cadet").toString());
+
+
     if (data["nationality"] != null) {
       final nationality = data["nationality"] as Map<String, dynamic>;
-      await prefs.setString("nationality_code", (nationality["code"] ?? "").toString());
-      await prefs.setString("nationality_name", (nationality["name"] ?? "").toString());
-      await prefs.setString("nationality_flag", (nationality["flag"] ?? "").toString());
+      await prefs.setString("nationality_code", nationality["code"] ?? "");
+      await prefs.setString("nationality_name", nationality["name"] ?? "");
+      await prefs.setString("nationality_flag", nationality["flag"] ?? "");
     }
 
-    // 🎖️ Muestra el popup de logro antes de ir al Home
-    await unlockInitialAchievement(context);
+    // 🔹 Guarda en SQLite
+    await LocalDB.saveUserProfile({
+      'id': widget.user.uid,
+      'fullName': data['fullName'],
+      'nickname': data['nickname'],
+      'description': data['description'],
+      'gender': data['gender'],
+      'nationality': (data['nationality'] as Map<String, dynamic>?)?['name'],
+      'imagePath': data['profileImageUrl'],
+    });
 
+    // 🔹 Guarda configuración en Hive
+    HiveService.setRememberMe(true);
+
+    // 🎖️ Logro inicial
+    if (mounted) {
+      await unlockInitialAchievement(context);
+    }
+
+    // 🔹 Ya no navegamos aquí (porque lo hace el botón)
     if (!mounted) return;
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => const HomeScreen()),
-    );
   }
 
   InputDecoration _inputStyle(String label, FocusNode focus, String value) {
@@ -350,9 +376,30 @@ class _FinalDetailsPageState extends State<FinalDetailsPage> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: saving ? null : _saveFinalDetails,
+                onPressed: saving
+                  ? null
+                  : () async {
+                      setState(() => saving = true);
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Saving your profile..."),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                      // 🔹 Espera a que se guarde todo (y se muestre el logro)
+                      await _saveFinalDetails();
+
+                      if (!mounted) return;
+
+                      // 🔹 Luego de mostrar el logro, ir al Home
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (_) => const HomeScreen()),
+                      );
+                    },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: focusColor,
+                  backgroundColor: const Color(0xFF0095FC),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(30),
@@ -365,7 +412,7 @@ class _FinalDetailsPageState extends State<FinalDetailsPage> {
                         style: TextStyle(
                           fontFamily: "RobotoMono",
                           fontWeight: FontWeight.bold,
-                          color: bgColor,
+                          color: Color(0xFF010B19),
                         ),
                       ),
               ),

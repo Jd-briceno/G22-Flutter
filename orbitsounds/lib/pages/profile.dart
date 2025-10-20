@@ -7,6 +7,7 @@ import 'package:melodymuse/components/navbar.dart';
 import 'package:heroicons/heroicons.dart';
 import 'package:melodymuse/pages/edit_profile_screen.dart';
 import 'package:melodymuse/pages/all_achievements_screen.dart'; // 👈 importa la nueva página
+import 'package:melodymuse/pages/settings_page.dart';
 import 'package:provider/provider.dart';
 import 'package:melodymuse/services/playback_manager_service.dart';
 import 'package:melodymuse/pages/music_detail_screen.dart';
@@ -77,16 +78,25 @@ class _ProfileBackstagePageState extends State<ProfileBackstagePage> {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     const SizedBox(height: 20),
-                    const Navbar(
+                    Navbar(
                       username: "Jay Walker",
                       title: "Lightning Ninja",
                       subtitle: "Command Profile",
-                      profileWidget: HeroIcon(
-                        HeroIcons.cog,
-                        style: HeroIconStyle.outline,
-                        color: Color(0xFFE9E8EE),
-                        size: 28,
+                      profileWidget: GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const SettingsPage()),
+                          );
+                        },
+                        child: const HeroIcon(
+                          HeroIcons.cog,
+                          style: HeroIconStyle.outline,
+                          color: Color(0xFFE9E8EE),
+                          size: 28,
+                        ),
                       ),
+
                     ),
                     const SizedBox(height: 0),
 
