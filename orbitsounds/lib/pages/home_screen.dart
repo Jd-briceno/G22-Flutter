@@ -1,7 +1,10 @@
 import 'dart:math';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:melodymuse/pages/mood_playlist_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:heroicons/heroicons.dart';
 
@@ -32,6 +35,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final WeatherService _weatherService = WeatherService();
   Weather? _weather;
   bool _locationError = false;
+  // 🔹 Variables del perfil desde Firebase
+  String? nickname;
+  String? title;
+  String? profileImageUrl;
 
   @override
   void dispose() {
@@ -70,8 +77,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _loadWeather();
 
     // 🔹 Cargamos demo playlist solo cuando el árbol esté listo
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadDemoPlaylist());
-  }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+    _loadDemoPlaylist();
+    _loadUserProfile(); // 🔹 Cargar perfil dinámico aquí
+      });
+    }
 
   Future<void> _loadDemoPlaylist() async {
     final playback = context.read<PlaybackManagerService>();
@@ -205,6 +215,46 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     });
   }
 
+   // 🔹 Obtener perfil del usuario desde Firestore
+  Future<void> _loadUserProfile() async {
+    try {
+      // 🔹 Obtener usuario autenticado actual
+      final currentUser = FirebaseAuth.instance.currentUser;
+
+      if (currentUser == null) {
+        debugPrint("⚠️ No hay usuario autenticado.");
+        return;
+      }
+
+      // 🔹 Buscar documento por UID (recomendado)
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser.uid)
+          .get();
+
+      // 🔸 Si tus documentos están guardados por email en lugar de UID:
+      // final userDoc = await FirebaseFirestore.instance
+      //     .collection('users')
+      //     .doc(currentUser.email)
+      //     .get();
+
+      if (userDoc.exists) {
+        final data = userDoc.data()!;
+        setState(() {
+          nickname = data['nickname'] ?? 'Unknown';
+          title = data['title'] ?? 'Adventurer';
+          profileImageUrl = data['profileImageUrl'] ?? '';
+        });
+
+        debugPrint("✅ Perfil cargado: $nickname ($title)");
+      } else {
+        debugPrint("⚠️ No se encontró el documento del usuario en Firestore.");
+      }
+    } catch (e) {
+      debugPrint("❌ Error cargando perfil: $e");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final playback = context.watch<PlaybackManagerService>();
@@ -215,6 +265,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       backgroundColor: const Color(0xFF010B19),
       body: Stack(
         children: [
+          // 🌌 Fondo animado (estrellas, relámpagos)
           AnimatedBuilder(
             animation: Listenable.merge([_timeController, _colorController]),
             builder: (context, _) {
@@ -240,18 +291,20 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             },
           ),
 
-          // ───── Contenido ─────
+          // 🌠 Contenido principal
           Column(
             children: [
               const SizedBox(height: 40),
-              const Navbar(
-                username: "Jay Walker",
-                title: "Lightning Ninja",
-                profileImage: "assets/images/Jay.jpg",
+              Navbar(
+                username: nickname ?? "Cargando...",
+                title: title ?? "Sin título",
+                profileImage: (profileImageUrl != null && profileImageUrl!.isNotEmpty)
+                    ? profileImageUrl!
+                    : "assets/images/default_profile.jpg",
               ),
               const SizedBox(height: 20),
 
-              // Astronauta flotante
+              // 🚀 Astronauta flotante
               Expanded(
                 child: Center(
                   child: AnimatedBuilder(
@@ -269,12 +322,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ),
               ),
 
-              // 🎧 Mini Reproductor sincronizado globalmente
+              // 🎧 Mini Reproductor
               GestureDetector(
                 onTap: () {
                   final playback = context.read<PlaybackManagerService>();
-
-                  // Navegar solo si hay una canción actual cargada
                   if (playback.currentTrack != null && playback.playlist.isNotEmpty) {
                     Navigator.push(
                       context,
@@ -302,12 +353,27 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 ),
               ),
 
-
-
               const SizedBox(height: 8),
               _buildShortcuts(context),
               const SizedBox(height: 20),
             ],
+          ),
+
+          // 🎤 BOTÓN FLOTANTE (Modo Emocional)
+          Positioned(
+            right: 20,
+            bottom: 215, // 🔹 Justo encima del SongReproductor
+            child: FloatingActionButton(
+              backgroundColor: Colors.deepPurpleAccent,
+              elevation: 8,
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MoodPlaylistScreen()),
+                );
+              },
+              child: const Icon(Icons.mic, color: Colors.white, size: 28),
+            ),
           ),
         ],
       ),

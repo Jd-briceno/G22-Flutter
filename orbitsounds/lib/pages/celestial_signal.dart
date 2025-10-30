@@ -5,6 +5,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:melodymuse/pages/genre_selector.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async';
 
 
 // ───────────────────────────────────────────────
@@ -612,38 +615,134 @@ class _CelestialSignalPageState extends State<CelestialSignalPage>
     _controller =
         AnimationController(vsync: this, duration: const Duration(seconds: 2))
           ..repeat(reverse: true);
+
+    // 🔄 Intentar sincronizar cache al abrir la pantalla
+    _syncCachedSessions();
   }
 
-  Future<void> _saveConstellationEmotion(String emotion) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+  // ============================================================
+  // 🔌 Función para verificar conexión a internet
+  // ============================================================
+  Future<bool> _isOnline() async {
+    final result = await Connectivity().checkConnectivity();
+    return result != ConnectivityResult.none;
+  }
 
-    try {
+  // ============================================================
+  // ☁️ Función para guardar emoción de constelación (online/offline)
+  // ============================================================
+  // ============================================================
+// ☁️ Guardar emoción de constelación (online/offline)
+// ============================================================
+Future<void> _saveConstellationEmotion(String emotion) async {
+  final user = FirebaseAuth.instance.currentUser;
+  final uid = user?.uid ?? "guest";
+  final sessionId = widget.sessionId;
+
+  try {
+    final online = await _isOnline();
+    final prefs = await SharedPreferences.getInstance();
+
+    // ✅ Usamos una clave separada para evitar mezclar emociones antiguas
+    final key = 'cached_constellation_emotions_$sessionId';
+
+    if (online) {
+      // ☁️ Guardar en Firestore dentro de la sesión
       final docRef = FirebaseFirestore.instance
           .collection("users")
-          .doc(user.uid)
+          .doc(uid)
           .collection("sessions")
-          .doc(widget.sessionId); // 👈 usamos el sessionId que vino de la otra pantalla
+          .doc(sessionId);
 
-      // Asegurar que la sesión existe
       await docRef.set({
-        "userId": user.uid,
-        "sessionId": widget.sessionId,
+        "userId": uid,
+        "sessionId": sessionId,
         "timestamp": FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      // Guardar emoción en subcolección
       await docRef.collection("constellation").add({
         "emotion": emotion,
-        "source":"Constellation",
+        "source": "Constellation",
         "timestamp": FieldValue.serverTimestamp(),
       });
 
-      debugPrint("✅ Emoción guardada: $emotion");
-    } catch (e) {
-      debugPrint("❌ Error guardando emoción: $e");
+      print("☁️ Emoción de constelación guardada ONLINE: $emotion ($sessionId)");
+
+      // ✅ Limpieza local si estaba cacheada
+      await prefs.remove(key);
+    } else {
+      // 💾 Guardar localmente (offline)
+      final existing = prefs.getStringList(key) ?? [];
+      existing.add(emotion);
+      await prefs.setStringList(key, existing);
+
+      // Registrar sesión cacheada (si no existe)
+      final cachedSessions = prefs.getStringList('cached_sessions') ?? [];
+      if (!cachedSessions.contains(sessionId)) {
+        cachedSessions.add(sessionId);
+        await prefs.setStringList('cached_sessions', cachedSessions);
+      }
+
+      print("📴 Emoción de constelación guardada OFFLINE: $emotion ($sessionId)");
+    }
+  } catch (e) {
+    print("❌ Error guardando emoción de constelación: $e");
+  }
+}
+
+
+  // ============================================================
+  // 🔄 Sincronizar sesiones cacheadas (cuando vuelve la conexión)
+  // ============================================================
+  // ============================================================
+// 🔄 Sincronizar sesiones cacheadas (cuando vuelve la conexión)
+// ============================================================
+  Future<void> _syncCachedSessions() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cachedSessions = prefs.getStringList('cached_sessions') ?? [];
+    if (cachedSessions.isEmpty) return;
+
+    if (await _isOnline()) {
+      final uid = FirebaseAuth.instance.currentUser?.uid ?? "guest";
+
+      for (final sessionId in cachedSessions) {
+        // ✅ Usamos la clave correcta para constellation
+        final emotions =
+            prefs.getStringList('cached_constellation_emotions_$sessionId') ?? [];
+        if (emotions.isEmpty) continue;
+
+        try {
+          final docRef = FirebaseFirestore.instance
+              .collection("users")
+              .doc(uid)
+              .collection("sessions")
+              .doc(sessionId);
+
+          await docRef.set({
+            "userId": uid,
+            "sessionId": sessionId,
+            "timestamp": FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+
+          for (final emotion in emotions) {
+            await docRef.collection("constellation").add({
+              "emotion": emotion,
+              "source": "Constellation",
+              "timestamp": FieldValue.serverTimestamp(),
+            });
+          }
+
+          await prefs.remove('cached_constellation_emotions_$sessionId');
+          print("✅ Sesión sincronizada correctamente: $sessionId (${emotions.length} emociones)");
+        } catch (e) {
+          print("⚠️ Error sincronizando sesión $sessionId: $e");
+        }
+      }
+
+      await prefs.remove('cached_sessions');
     }
   }
+
 
   void _handleTap(TapDownDetails details, Size size) {
     for (final c in constellations) {
@@ -912,31 +1011,55 @@ Widget build(BuildContext context) {
                           left: cruzPos.dx - 150,
                           child: GestureDetector(
                             onTap: () async {
-                              String emotionToSave = "";
-                              if (_selected.isNotEmpty) {
-                                if (_selected.length == 1) {
-                                  final idx = constellations.indexOf(_selected.first);
-                                  emotionToSave = (constellationInfo["$idx"]?["emotion"] as String?) ?? "";
-                                } else {
-                                  final i1 = constellations.indexOf(_selected[0]);
-                                  final i2 = constellations.indexOf(_selected[1]);
-                                  final ordered = [i1, i2]..sort();
-                                  final key = "${ordered[0]}_${ordered[1]}";
-                                  emotionToSave = (constellationInfo[key]?["emotion"] as String?) ?? "";
-                                }
+                            String? emotionToSave;
+                            if (_selected.isEmpty) {
+                              print("⚠️ Ninguna constelación seleccionada");
+                              return;
+                            }
 
-                                if (emotionToSave.isNotEmpty) {
-                                  await _saveConstellationEmotion(emotionToSave);
-                                }
-                              }
+                            if (_selected.length == 1) {
+                              final idx = constellations.indexOf(_selected.first);
+                              emotionToSave = constellationInfo["$idx"]?["emotion"] as String?;
+                            } else if (_selected.length == 2) {
+                              final i1 = constellations.indexOf(_selected[0]);
+                              final i2 = constellations.indexOf(_selected[1]);
+                              final ordered = [i1, i2]..sort();
+                              final key = "${ordered[0]}_${ordered[1]}";
+                              emotionToSave = constellationInfo[key]?["emotion"] as String?;
+                            }
 
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const GenreSelectorPage(),
-                                ),
-                              );
-                            },
+                            if (emotionToSave == null || emotionToSave!.isEmpty) {
+                              print("⚠️ No se encontró emoción para la selección actual");
+                              return;
+                            }
+
+                            print("🌟 Emoción de constelación detectada: $emotionToSave");
+                            unawaited(_saveConstellationEmotion(emotionToSave!));
+
+                            setState(() {
+                              for (var c in constellations) c.isSelected = false;
+                              _selected.clear();
+                            });
+
+                            // 🚀 Iniciar guardado en segundo plano
+                            if (emotionToSave.isNotEmpty) {
+                              unawaited(_saveConstellationEmotion(emotionToSave));
+                            if (emotionToSave.isNotEmpty) {
+                              unawaited(_saveConstellationEmotion(emotionToSave));
+                              setState(() {
+                                for (var c in constellations) c.isSelected = false;
+                                _selected.clear();
+                              });
+                            }
+                            }
+
+                            // 💨 Avanzar de página inmediatamente
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const GenreSelectorPage()),
+                            );
+                          },
+
                             child: Container(
                               width: 300,
                               padding: const EdgeInsets.symmetric(
