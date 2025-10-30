@@ -417,3 +417,5 @@ class FriendCircle extends StatelessWidget {
     );
   }
 }
+
+// fix black/white medals
