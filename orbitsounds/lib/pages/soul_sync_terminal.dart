@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:melodymuse/components/navbar.dart';
@@ -6,6 +7,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_analytics/observer.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class SoulSyncTerminal extends StatefulWidget {
   const SoulSyncTerminal({Key? key}) : super(key: key);
@@ -70,6 +73,50 @@ class _SoulSyncTerminal extends State<SoulSyncTerminal>
 
   final double scale = 0.758;
 
+  // ============================================================
+// 🔌 Estrategia de conectividad eventual (offline-first)
+// ============================================================
+
+// 🔍 Verificar si hay conexión activa
+Future<bool> _isOnline() async {
+  final result = await Connectivity().checkConnectivity();
+  return result != ConnectivityResult.none;
+}
+
+// 💾 Guardar emoción localmente si no hay conexión
+Future<void> _cacheEmotionLocally(String emotion) async {
+  final prefs = await SharedPreferences.getInstance();
+  final cached = prefs.getStringList('cached_emotions') ?? [];
+  cached.add(emotion);
+  await prefs.setStringList('cached_emotions', cached);
+  print("📴 Emoción guardada offline: $emotion");
+}
+
+// ☁️ Guardar emoción en Firestore si hay conexión
+Future<void> _saveEmotionOnline(String emotion) async {
+  await FirebaseFirestore.instance.collection('emotions').add({
+    "emotion": emotion,
+    "timestamp": FieldValue.serverTimestamp(),
+    "userId": _getCurrentUserId(),
+  });
+  print("☁️ Emoción guardada online: $emotion");
+}
+
+// 🔄 Sincronizar emociones guardadas localmente al recuperar conexión
+Future<void> _syncCachedEmotions() async {
+  final prefs = await SharedPreferences.getInstance();
+  final cached = prefs.getStringList('cached_emotions') ?? [];
+  if (cached.isEmpty) return;
+
+  if (await _isOnline()) {
+    for (final e in cached) {
+      await _saveEmotionOnline(e);
+    }
+    await prefs.remove('cached_emotions');
+    print("🔄 Emociones offline sincronizadas con Firestore (${cached.length})");
+  }
+}
+
   //Usuario actual
   String? _getCurrentUserId() {
     final user = FirebaseAuth.instance.currentUser;
@@ -101,29 +148,185 @@ class _SoulSyncTerminal extends State<SoulSyncTerminal>
     }
 
     try {
-      await FirebaseFirestore.instance.collection("emotions_collections").add({
-        "emotions": _selectedEmotions,
-        "timestamp": FieldValue.serverTimestamp(),
-        "userId": "guest",
-      });
-      print("✅ Lista de emociones guardada: $_selectedEmotions");
+      final online = await _isOnline();
+
+      if (online) {
+        // 🌐 Guardamos directamente en Firestore
+        FirebaseFirestore.instance.collection("emotions_collections").add({
+          "emotions": _selectedEmotions,
+          "timestamp": FieldValue.serverTimestamp(),
+          "userId": _getCurrentUserId(),
+        }).then((_) {
+          print("✅ Lista de emociones guardada ONLINE: $_selectedEmotions");
+        }).catchError((e) {
+          print("❌ Error guardando online: $e");
+        });
+      } else {
+        // 💾 Guardamos localmente (modo offline)
+        final prefs = await SharedPreferences.getInstance();
+        final cachedCollections =
+            prefs.getStringList('cached_emotion_collections') ?? [];
+        cachedCollections.add(_selectedEmotions.join('|'));
+        await prefs.setStringList('cached_emotion_collections', cachedCollections);
+        print("📴 Lista de emociones guardada OFFLINE: $_selectedEmotions");
+      }
     } catch (e) {
-      print("❌ Error al guardar lista de emociones: $e");
+      print("❌ Error al guardar emociones: $e");
     }
   }
 
+  // 🔄 Sincronizar colecciones de emociones guardadas offline
+  Future<void> _syncCachedEmotionCollections() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cached = prefs.getStringList('cached_emotion_collections') ?? [];
+    if (cached.isEmpty) return;
+
+    if (await _isOnline()) {
+      for (final data in cached) {
+        try {
+          final emotions = data.split('|');
+          await FirebaseFirestore.instance.collection("emotions_collections").add({
+            "emotions": emotions,
+            "timestamp": FieldValue.serverTimestamp(),
+            "userId": _getCurrentUserId(),
+          });
+        } catch (e) {
+          print("⚠️ Error subiendo colección cacheada: $e");
+        }
+      }
+      await prefs.remove('cached_emotion_collections');
+      print("🔄 Colecciones de emociones sincronizadas (${cached.length})");
+    } else {
+      print("⛔️ No hay conexión, no se sincronizan colecciones.");
+    }
+  }
+
+  // 🔄 Sincronizar sesiones guardadas offline
+  Future<void> _syncCachedSessions() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cachedSessions = prefs.getStringList('cached_sessions') ?? [];
+    if (cachedSessions.isEmpty) return;
+
+    if (await _isOnline()) {
+      for (final sessionId in cachedSessions) {
+        final emotions = prefs.getStringList('cached_session_emotions_$sessionId') ?? [];
+        if (emotions.isEmpty) continue;
+
+        try {
+          await FirebaseFirestore.instance
+              .collection("users")
+              .doc(_getCurrentUserId())
+              .collection("sessions")
+              .doc(sessionId)
+              .set({
+            "sessionId": sessionId,
+            "userId": _getCurrentUserId(),
+            "emotions": emotions,
+            "timestamp": FieldValue.serverTimestamp(),
+          });
+          await prefs.remove('cached_session_emotions_$sessionId');
+          print("✅ Sesión $sessionId sincronizada online.");
+        } catch (e) {
+          print("⚠️ Error al sincronizar sesión $sessionId: $e");
+        }
+      }
+
+      await prefs.remove('cached_sessions');
+    }
+  }
+
+
+
   //Crear sesión
   Future<String?> _createSessionOnExit() async {
-  if (_selectedEmotions.isEmpty) {
-    print("⚠️ No hay emociones para guardar en sesión.");
-    return null;
+    if (_selectedEmotions.isEmpty) {
+      print("⚠️ No hay emociones para guardar en sesión.");
+      return null;
+    }
+
+    try {
+      final uid = _getCurrentUserId();
+      final sessionId = DateTime.now().millisecondsSinceEpoch.toString();
+
+      // 💾 1️⃣ Guarda SIEMPRE localmente primero
+      final prefs = await SharedPreferences.getInstance();
+
+      final cachedSessions = prefs.getStringList('cached_sessions') ?? [];
+      if (!cachedSessions.contains(sessionId)) {
+        cachedSessions.add(sessionId);
+        await prefs.setStringList('cached_sessions', cachedSessions);
+      }
+
+      await prefs.setStringList('cached_session_emotions_$sessionId', _selectedEmotions);
+
+      print("📴 Sesión cacheada localmente: $sessionId");
+
+      // 🌐 2️⃣ Si hay conexión real, sube en background (sin bloquear)
+      if (await _isOnline()) {
+        unawaited(_uploadSessionToFirestore(uid!, sessionId));
+      }
+
+      // 🔹 3️⃣ Analytics (también solo si hay red)
+      try {
+        if (await _isOnline()) {
+          await FirebaseAnalytics.instance.logEvent(
+            name: 'session_created',
+            parameters: {
+              'session_id': sessionId,
+              'user_id': ?uid,
+              'emotion_count': _selectedEmotions.length,
+              'emotions': _selectedEmotions.join(', '),
+            },
+          );
+          print("📊 Analytics: session_created -> $sessionId");
+        }
+      } catch (e) {
+        print("⚠️ Error registrando evento en Analytics: $e");
+      }
+
+      return sessionId;
+    } catch (e) {
+      print("❌ Error al guardar sesión: $e");
+      return null;
+    }
+  }
+
+  /// 🔧 Función auxiliar: sube sesión si hay conexión
+  Future<void> _uploadSessionToFirestore(String uid, String sessionId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final emotions = prefs.getStringList('cached_session_emotions_$sessionId') ?? [];
+
+      await FirebaseFirestore.instance
+          .collection("users")
+          .doc(uid)
+          .collection("sessions")
+          .doc(sessionId)
+          .set({
+        "sessionId": sessionId,
+        "userId": uid,
+        "emotions": emotions,
+        "timestamp": FieldValue.serverTimestamp(),
+        "synced": true,
+      });
+
+      print("✅ Sesión sincronizada online: $sessionId");
+    } catch (e) {
+      print("⚠️ Error subiendo sesión online (queda en caché): $e");
+    }
+  }
+
+
+
+/// 🔁 Intenta subir la sesión a Firestore si hay conexión (asincrónico)
+Future<void> _trySyncSessionOnline(String uid, String sessionId, List<String> emotions) async {
+  final online = await _isOnline();
+  if (!online) {
+    print("📡 Sin conexión, la sesión se sincronizará luego.");
+    return;
   }
 
   try {
-    final uid = _getCurrentUserId();
-    final sessionId = DateTime.now().millisecondsSinceEpoch.toString();
-
-    // 🔹 Guarda la sesión en Firestore
     await FirebaseFirestore.instance
         .collection("users")
         .doc(uid)
@@ -132,34 +335,32 @@ class _SoulSyncTerminal extends State<SoulSyncTerminal>
         .set({
       "sessionId": sessionId,
       "userId": uid,
-      "emotions": _selectedEmotions,
+      "emotions": emotions,
       "timestamp": FieldValue.serverTimestamp(),
     });
 
-    print("✅ Sesión guardada en users/$uid/sessions/$sessionId");
+    // Si subió bien, limpiamos el cache local
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('cached_session_emotions_$sessionId');
+    print("✅ Sesión sincronizada online: $sessionId");
 
-    // 🔹 Registrar también en Firebase Analytics
-    try {
-      await FirebaseAnalytics.instance.logEvent(
-        name: 'session_created',
-        parameters: {
-          'session_id': sessionId,
-          'user_id': ?uid,
-          'emotion_count': _selectedEmotions.length,
-          'emotions': _selectedEmotions.join(', '),
-        },
-      );
-      print("📊 Analytics: session_created -> $sessionId");
-    } catch (e) {
-      print("⚠️ Error registrando evento en Analytics: $e");
-    }
+    // 🔹 Registrar evento en Analytics
+    await FirebaseAnalytics.instance.logEvent(
+      name: 'session_created',
+      parameters: {
+        'session_id': sessionId,
+        'user_id': uid,
+        'emotion_count': emotions.length,
+        'emotions': emotions.join(', '),
+      },
+    );
+    print("📊 Analytics: session_created -> $sessionId");
 
-    return sessionId; // devolvemos el id
   } catch (e) {
-    print("❌ Error al guardar sesión: $e");
-    return null;
+    print("⚠️ Error al sincronizar sesión online: $e");
   }
 }
+
 
 
 
@@ -201,12 +402,29 @@ class _SoulSyncTerminal extends State<SoulSyncTerminal>
   @override
   void initState() {
     super.initState();
+
+    // 🎬 Inicialización de animación existente
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
+
+    // 🔁 Intentar sincronizar emociones pendientes al iniciar
+    _syncCachedEmotions();
+    _syncCachedEmotionCollections();
+    _syncCachedSessions();
+
+    // 🔔 Escuchar cambios de conectividad y sincronizar automáticamente
+    Connectivity().onConnectivityChanged.listen((result) {
+      if (result != ConnectivityResult.none) {
+        _syncCachedEmotions();
+        _syncCachedEmotionCollections();
+        _syncCachedSessions();
+      }
+    });
   }
 
+  void unawaited(Future<void> future) {} 
   @override
   void dispose() {
     _controller.dispose();
@@ -568,20 +786,53 @@ class _SoulSyncTerminal extends State<SoulSyncTerminal>
 
                         // 📍 Botón "Ready to Ship?"
                         Transform.translate(
-                          offset: const Offset(-15, 0), // 👈 mueve el botón 15px a la izquierda
+                          offset: const Offset(-15, 0),
                           child: GestureDetector(
                             onTap: () async {
-                              await _saveEmotionsToFirestore(); 
-                              final sessionId = await _createSessionOnExit(); // 👈 lo capturamos
-                              if (sessionId != null) {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => CelestialSignalPage(sessionId: sessionId), // 👈 lo pasamos
+                              try {
+                                final hasConnection = await _isOnline();
+
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      hasConnection
+                                          ? 'Conectado 🌐 — Guardando en la nube...'
+                                          : 'Sin conexión 📴 — Guardando localmente...',
+                                    ),
+                                    backgroundColor: hasConnection ? Colors.green : Colors.orange,
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+
+                                // 🔹 Guarda emociones sin bloquear (puede fallar sin conexión)
+                                unawaited(_saveEmotionsToFirestore());
+
+                                // 🔹 PERO guarda la sesión (mínimo en cache) antes de navegar
+                                final sessionId = await _createSessionOnExit();
+
+                                // 🔹 Luego ya podemos navegar
+                                if (context.mounted) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => CelestialSignalPage(sessionId: sessionId ?? 'offline_${DateTime.now().millisecondsSinceEpoch}'),
+                                    ),
+                                  );
+                                }
+
+                              } catch (e) {
+                                print("⚠️ Error ReadyToShip: $e");
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Error al guardar: $e'),
+                                    backgroundColor: Colors.red,
                                   ),
                                 );
                               }
                             },
+
+
+
                             child: SizedBox(
                               width: 191 * scale,
                               height: 40 * scale,

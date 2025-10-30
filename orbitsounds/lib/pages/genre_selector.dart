@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:melodymuse/components/achivement_popup.dart';
 import 'package:melodymuse/pages/home_screen.dart';
@@ -5,9 +8,10 @@ import 'package:melodymuse/pages/playlist_screen.dart';
 import 'package:heroicons/heroicons.dart';
 import 'dart:io'; // 👈 necesario para exit(0)
 import 'package:flutter/services.dart'; // 👈 necesario para SystemNavigator.pop()
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:melodymuse/services/offline_achievements_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const MyApp());
@@ -58,81 +62,64 @@ class _GenreSelectorPageState extends State<GenreSelectorPage> {
   //Desbloquear logro
   Future<void> unlockAchievement(BuildContext context, String genreName) async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    final achievement = genreAchievements[genreName]!;
+    final offlineService = OfflineAchievementsService();
+    final uid = user?.uid ?? "guest";
 
-    final achievementsRef = FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .collection('achievements');
+    try {
+      final connected = await Connectivity().checkConnectivity();
+      final online = connected != ConnectivityResult.none;
 
-    // ⚡ Evita duplicados
-    final snapshot = await achievementsRef
-        .where('target', isEqualTo: genreName)
-        .limit(1)
-        .get();
+      bool alreadyUnlocked = false;
 
-    if (snapshot.docs.isEmpty) {
-      final achievement = genreAchievements[genreName]!;
+      if (online && user != null) {
+        // 🔍 Verificar si ya existe el logro en Firestore
+        final existing = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(uid)
+            .collection('achievements')
+            .where('target', isEqualTo: genreName)
+            .limit(1)
+            .get();
 
-      await achievementsRef.add({
-        'target': genreName,
-        'title': achievement["title"],
-        'icon': achievement["icon"],
-        'unlockedAt': FieldValue.serverTimestamp(),
-      });
+        alreadyUnlocked = existing.docs.isNotEmpty;
 
-      // 🎖️ Mostrar popup y ESPERAR a que se cierre
-      await showDialog(
-        context: context,
-        barrierDismissible: true,
-        builder: (_) => AchievementPopup(
-          genre: genreName,
-          title: achievement["title"]!,
-          iconPath: achievement["icon"]!,
-        ),
-      );
+        if (!alreadyUnlocked) {
+          await offlineService.saveAchievementOnline(genreName, achievement);
+        }
+      } else {
+        // 🔍 Revisar si está en caché local
+        final prefs = await SharedPreferences.getInstance();
+        final cached = prefs.getStringList('cached_achievements') ?? [];
+        alreadyUnlocked = cached.any((e) => e.startsWith("$genreName|"));
+
+        if (!alreadyUnlocked) {
+          await offlineService.cacheAchievement(genreName, achievement);
+        }
+      }
+
+      // 🎖️ Mostrar popup solo si es NUEVO
+      if (!alreadyUnlocked && context.mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: true,
+          builder: (_) => AchievementPopup(
+            genre: genreName,
+            title: achievement["title"]!,
+            iconPath: achievement["icon"]!,
+          ),
+        );
+      } else {
+        print("✅ Logro '$genreName' ya desbloqueado, no se muestra popup.");
+      }
+    } catch (e) {
+      print("⚠️ Error guardando logro: $e");
+      // En caso de error, lo cacheamos igualmente
+      await offlineService.cacheAchievement(genreName, achievement);
     }
   }
 
 
-  //Desbloquear logro
-  Future<void> unlockAchievement(BuildContext context, String genreName) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    final achievementsRef = FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .collection('achievements');
-
-    // ⚡ Evita duplicados
-    final snapshot = await achievementsRef
-        .where('target', isEqualTo: genreName)
-        .limit(1)
-        .get();
-
-    if (snapshot.docs.isEmpty) {
-      final achievement = genreAchievements[genreName]!;
-
-      await achievementsRef.add({
-        'target': genreName,
-        'title': achievement["title"],
-        'icon': achievement["icon"],
-        'unlockedAt': FieldValue.serverTimestamp(),
-      });
-
-      // 🎖️ Mostrar popup y ESPERAR a que se cierre
-      await showDialog(
-        context: context,
-        barrierDismissible: true,
-        builder: (_) => AchievementPopup(
-          genre: genreName,
-          title: achievement["title"]!,
-          iconPath: achievement["icon"]!,
-        ),
-      );
-    }
-  }
 
 
   final List<Map<String, dynamic>> genres = [
@@ -365,33 +352,35 @@ class _GenreSelectorPageState extends State<GenreSelectorPage> {
                           children: [
                             GestureDetector(
                               onTap: () async {
-                                await unlockAchievement(context, genre["name"]);
-
-                                // 📊 Log: el usuario tocó Explore Songs
-                                await analytics.logEvent(
+                                // 🎖️ Desbloqueo de logro y analytics en paralelo (sin bloquear la UI)
+                                unawaited(unlockAchievement(context, genre["name"]));
+                                unawaited(analytics.logEvent(
                                   name: 'explore_songs_clicked',
                                   parameters: {
                                     'genre': genre["name"],
                                     'timestamp': DateTime.now().toIso8601String(),
                                   },
-                                );
+                                ));
 
                                 // 🕒 Marca de inicio
                                 final startTime = DateTime.now();
 
-                                // 🚀 Navega a la playlist
-                                await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => PlaylistScreen(
-                                      genre: genre["name"],
-                                      colors: List<Color>.from(genre["colors"]),
-                                      fontFamily: genre["fontFamily"],
-                                      startTime: startTime,
+                                // 🚀 Navega inmediatamente
+                                if (context.mounted) {
+                                  await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => PlaylistScreen(
+                                        genre: genre["name"],
+                                        colors: List<Color>.from(genre["colors"]),
+                                        fontFamily: genre["fontFamily"],
+                                        startTime: startTime,
+                                      ),
                                     ),
-                                  ),
-                                );
+                                  );
+                                }
                               },
+
                               child: Container(
                                 width: double.infinity,
                                 padding: const EdgeInsets.symmetric(vertical: 14),

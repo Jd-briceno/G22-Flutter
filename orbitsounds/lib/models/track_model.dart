@@ -1,11 +1,29 @@
+import 'package:hive/hive.dart';
+
+part 'track_model.g.dart'; // 👈 necesario para Hive (lo generaremos con build_runner)
+
+@HiveType(typeId: 0) // 👈 cada modelo debe tener un typeId único
 class Track {
+  @HiveField(0)
   final String title;
+
+  @HiveField(1)
   final String artist;
+
+  @HiveField(2)
   final String duration; // formatted string "3:45"
-  final int durationMs;  // raw milliseconds
+
+  @HiveField(3)
+  final int durationMs; // raw milliseconds
+
+  @HiveField(4)
   final String albumArt;
+
+  @HiveField(5)
   final String? previewUrl; // optional, for 30s preview playback
-  bool isLiked; // ✅ Nuevo campo para controlar el "like"
+
+  @HiveField(6)
+  bool isLiked;
 
   Track({
     required this.title,
@@ -17,6 +35,7 @@ class Track {
     this.isLiked = false,
   });
 
+  /// 🟢 Desde Spotify API
   factory Track.fromSpotify(Map<String, dynamic> json) {
     final durationMs = json['duration_ms'] ?? 0;
     final minutes = (durationMs / 60000).floor();
@@ -41,7 +60,7 @@ class Track {
     );
   }
 
-  // ✅ Método para convertir el objeto en un Map (para enviar a Isolate o guardar)
+  /// 🟡 Convertir a Map
   Map<String, dynamic> toMap() {
     return {
       'title': title,
@@ -54,7 +73,7 @@ class Track {
     };
   }
 
-  // ✅ Método inverso para reconstruir el objeto desde un Map
+  /// 🟡 Reconstruir desde Map
   factory Track.fromMap(Map<String, dynamic> map) {
     return Track(
       title: map['title'] ?? '',
@@ -67,7 +86,12 @@ class Track {
     );
   }
 
-  // ✅ copyWith: útil para clonar o actualizar propiedades
+  /// 🧩 Serialización JSON (para Hive o Isolates)
+  Map<String, dynamic> toJson() => toMap();
+
+  factory Track.fromJson(Map<String, dynamic> json) => Track.fromMap(json);
+
+  /// 🔁 Copiar y actualizar campos
   Track copyWith({
     String? title,
     String? artist,

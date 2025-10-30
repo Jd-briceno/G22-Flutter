@@ -16,14 +16,15 @@ class AresPlaylistGeneratorService {
       StreamController<double>.broadcast();
   Stream<double> get progressStream => _progressController.stream;
 
-  /// ✅ Usa Isolate (compute) para generar la playlist en segundo plano
+  // ======================================================
+  // 🎧 MÉTODO 1: Playlist basada en gustos del usuario
+  // ======================================================
   Future<Playlist?> generatePersonalizedPlaylist({
     required List<String> likedGenres,
     required List<String> likedSongs,
     required List<String> interests,
   }) async {
     try {
-      // 🔸 Paso 1: Pedir a la IA las canciones sugeridas
       final aiTracks = await _ares.generatePlaylist(
         likedGenres: likedGenres,
         likedSongs: likedSongs,
@@ -32,7 +33,6 @@ class AresPlaylistGeneratorService {
 
       if (aiTracks.isEmpty) return null;
 
-      // 🔸 Paso 2: buscar detalles en paralelo usando Future.wait (más rápido)
       final futures = aiTracks.map((song) async {
         final query = "${song['title']} ${song['artist']}";
         final results = await _spotify.searchTracks(query);
@@ -42,7 +42,6 @@ class AresPlaylistGeneratorService {
       int completed = 0;
       final List<Track> finalTracks = [];
 
-      // 🔸 Paso 3: Ejecutar todas las búsquedas en paralelo con progreso
       for (final future in futures) {
         final track = await future;
         completed++;
@@ -52,27 +51,74 @@ class AresPlaylistGeneratorService {
 
       if (finalTracks.isEmpty) return null;
 
-      // 🔸 Paso 4: Generar Playlist en segundo plano (Isolate)
       return await compute(_buildPlaylistInBackground, {
         'id': _uuid.v4(),
         'tracks': finalTracks,
+        'title': "ARES Sound Lab",
+        'description': "Playlist creada por Ares según tus gustos 🎧",
       });
     } catch (e) {
-      debugPrint("❌ Error generando playlist: $e");
+      debugPrint("❌ Error generando playlist personalizada: $e");
       return null;
     } finally {
       _progressController.add(1.0);
     }
   }
 
-  /// 🧠 Función que corre en otro hilo (Isolate)
+  // ======================================================
+  // 🧠 MÉTODO 2: Playlist generada desde una frase o estado emocional
+  // ======================================================
+  Future<Playlist?> generateMoodBasedPlaylist(String moodPrompt) async {
+    try {
+      // 🔹 1. Pedir canciones a Gemini según cómo se siente el usuario
+      final aiTracks = await _ares.generatePlaylistFromMood(moodPrompt);
+
+      if (aiTracks.isEmpty) return null;
+
+      // 🔹 2. Buscar canciones reales en Spotify
+      final futures = aiTracks.map((song) async {
+        final query = "${song['title']} ${song['artist']}";
+        final results = await _spotify.searchTracks(query);
+        return results.isNotEmpty ? results.first : null;
+      }).toList();
+
+      int completed = 0;
+      final List<Track> finalTracks = [];
+
+      for (final future in futures) {
+        final track = await future;
+        completed++;
+        _progressController.add(completed / futures.length);
+        if (track != null) finalTracks.add(track);
+      }
+
+      if (finalTracks.isEmpty) return null;
+
+      // 🔹 3. Crear la playlist final en segundo plano
+      return await compute(_buildPlaylistInBackground, {
+        'id': _uuid.v4(),
+        'tracks': finalTracks,
+        'title': "Mood Playlist 🎭",
+        'description': "Playlist generada por Ares según tu estado de ánimo o deseo musical",
+      });
+    } catch (e) {
+      debugPrint("❌ Error generando playlist por estado de ánimo: $e");
+      return null;
+    } finally {
+      _progressController.add(1.0);
+    }
+  }
+
+  // ======================================================
+  // ⚙️ Función auxiliar: crea la playlist en un isolate
+  // ======================================================
   static Playlist _buildPlaylistInBackground(Map<String, dynamic> data) {
     final tracks = data['tracks'] as List<Track>;
     return Playlist(
       id: data['id'] as String,
-      title: "Recomendaciones de Ares",
-      description: "Playlist creada por Ares según tus gustos 🎧",
-      coverUrl: tracks.first.albumArt,
+      title: data['title'] as String,
+      description: data['description'] as String,
+      coverUrl: tracks.isNotEmpty ? tracks.first.albumArt : "",
       tracks: tracks,
     );
   }

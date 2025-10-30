@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:heroicons/heroicons.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'dart:io';
 
 class Navbar extends StatelessWidget {
   final String username;
@@ -20,8 +21,18 @@ class Navbar extends StatelessWidget {
   });
 
   ImageProvider _imageProviderFor(String path) {
-    if (path.startsWith('http')) return NetworkImage(path);
-    return AssetImage(path);
+    if (path.isEmpty) {
+      return const AssetImage('assets/images/Jay.jpg');
+    } else if (path.startsWith('http')) {
+      // 🔹 Imagen remota (Firebase Storage, etc.)
+      return NetworkImage(path);
+    } else if (path.startsWith('/data/')) {
+      // 🔹 Imagen local guardada en el dispositivo (FileImage)
+      return FileImage(File(path));
+    } else {
+      // 🔹 Imagen desde assets
+      return AssetImage(path);
+    }
   }
 
   @override
@@ -203,19 +214,20 @@ class Navbar extends StatelessWidget {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: profileWidget ??
-                  (profileImage != null
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: Image(
-                            image: _imageProviderFor(profileImage!),
-                            fit: BoxFit.cover,
-                          ),
-                        )
-                      : const Icon(
-                          Icons.person,
-                          color: Color(0xFFE9E8EE),
-                          size: 28,
-                        )),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: Image(
+                    image: _imageProviderFor(profileImage ?? ''),
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Icon(
+                        Icons.person,
+                        color: Color(0xFFE9E8EE),
+                        size: 28,
+                      );
+                    },
+                  ),
+                ),
             ),
           ),
 

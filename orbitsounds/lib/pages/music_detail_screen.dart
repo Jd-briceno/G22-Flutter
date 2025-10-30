@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import '../models/track_model.dart';
 import '../services/goal_tracker_service.dart';
 import '../services/playback_manager_service.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:geolocator/geolocator.dart';
 
 class TrackDetailScreen extends StatefulWidget {
   final List<Track> tracks;
@@ -26,6 +28,7 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
     with WidgetsBindingObserver {
   final GoalTrackerService _goalTracker = GoalTrackerService();
   late PlaybackManagerService _player;
+  final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
 
   @override
   void initState() {
@@ -79,6 +82,42 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
       if (!_player.isPlaying) {
         _player.play(); // Reanuda al volver
       }
+    }
+  }
+
+  /// 📍 Registrar patrones geográficos de uso
+  Future<void> logEngagementEvent(String trackName, String genre) async {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return;
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied ||
+            permission == LocationPermission.deniedForever) return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.low,
+      );
+
+      await _analytics.logEvent(
+        name: 'user_engagement_geo',
+        parameters: {
+          'track_name': trackName,
+          'genre': genre,
+          'latitude': position.latitude,
+          'longitude': position.longitude,
+          'hour': DateTime.now().hour,
+          'day_of_week': DateTime.now().weekday,
+        },
+      );
+
+      debugPrint("📊 Evento geo registrado: $trackName / $genre / ${position.latitude}");
+    } catch (e) {
+      debugPrint("⚠️ Error al registrar evento geo: $e");
     }
   }
 
@@ -345,8 +384,11 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
                     const SizedBox(width: 40),
                     PlayPauseButton(
                       isPlaying: player.isPlaying,
-                      onTap: () {
+                      onTap: () async {
                         player.isPlaying ? player.pause() : player.play();
+
+                        // 👇 Registrar evento de engagement con geolocalización
+                        await logEngagementEvent(track.title, widget.genre);
                       },
                     ),
                     const SizedBox(width: 40),

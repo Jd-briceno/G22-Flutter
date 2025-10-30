@@ -8,14 +8,22 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_analytics/observer.dart';
+import 'package:hive/hive.dart';
+
+// 🔹 Bases de datos y servicios
 import 'package:melodymuse/database/local_db.dart';
 import 'package:melodymuse/services/hive_service.dart';
+import 'package:melodymuse/services/offline_sync_service.dart';
 import 'firebase_options.dart';
 
 // 🔹 Provider y servicios
 import 'package:provider/provider.dart';
 import 'package:melodymuse/services/playback_manager_service.dart';
 import 'package:melodymuse/services/notification_service.dart';
+import 'package:melodymuse/services/offline_achievements_service.dart';
+
+// 🔹 Modelo Hive para registrar adaptador
+import 'package:melodymuse/models/track_model.dart';
 
 // 🔹 Páginas
 import 'package:melodymuse/pages/final_detail_page.dart';
@@ -30,6 +38,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   print('🚀 Iniciando MelodyMuse main()');
 
+  // 🌱 Variables de entorno
   try {
     await dotenv.load(fileName: ".env");
     print('📄 Variables de entorno cargadas correctamente.');
@@ -38,14 +47,28 @@ Future<void> main() async {
   }
 
   _setupGlobalErrorHandlers();
+
+  // 🔥 Inicializa Firebase
   await _ensureFirebase();
-  // Inicializa almacenamiento local (Hive + SQLite)
+
+  // 🔄 Inicia sincronización offline
+  OfflineSyncService().startListening();
+  OfflineAchievementsService().startListening();
+  print("🛰️ Servicio global de sincronización iniciado.");
+
+  // 💾 Inicializa Hive y SQLite
   await HiveService.init();
+
+  // 👇 REGISTRA EL ADAPTADOR HIVE PARA Track
+  if (!Hive.isAdapterRegistered(0)) {
+    Hive.registerAdapter(TrackAdapter());
+    print("📦 TrackAdapter registrado correctamente en Hive.");
+  }
+
   await LocalDB.database;
   print("💾 Hive y SQLite inicializados correctamente.");
 
   print("🕒 Esperando restauración de sesión de FirebaseAuth...");
-  // 👇 Espera a que FirebaseAuth restaure sesión antes de arrancar la app
   await FirebaseAuth.instance.authStateChanges().firstWhere((_) => true);
   print("✅ Sesión restaurada o confirmada.");
 
@@ -71,6 +94,7 @@ Future<void> main() async {
   });
 }
 
+/// 🧠 Captura errores globales
 RawReceivePort? _isolateErrorPort;
 
 void _setupGlobalErrorHandlers() {
@@ -97,6 +121,7 @@ void _setupGlobalErrorHandlers() {
   Isolate.current.addErrorListener(_isolateErrorPort!.sendPort);
 }
 
+/// 🔥 Inicializa Firebase
 Future<void> _ensureFirebase() async {
   try {
     print('🔁 Firebase.apps detectadas al entrar: ${Firebase.apps.length}');
@@ -132,7 +157,7 @@ Future<void> _ensureFirebase() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-    Future<String> _checkUserState(User user) async {
+  Future<String> _checkUserState(User user) async {
     print("🔍 Verificando estado del usuario ${user.uid}...");
     final docRef = FirebaseFirestore.instance.collection("users").doc(user.uid);
 
@@ -150,12 +175,12 @@ class MyApp extends StatelessWidget {
               data.containsKey("interests") && (data["interests"] as List).isNotEmpty;
 
           if (stage == 'created' || !hasInterests) {
-            return "noProfile"; // → CompleteProfilePage
+            return "noProfile";
           }
           if (!hasNickname) {
-            return "incomplete"; // → FinalDetailsPage
+            return "incomplete";
           }
-          return "complete"; // → HomeScreen
+          return "complete";
         } else {
           print("⚠️ Intento ${i + 1}: documento aún no existe en Firestore...");
         }
@@ -169,8 +194,6 @@ class MyApp extends StatelessWidget {
     print("⏰ No se encontró documento tras varios intentos → noProfile");
     return "noProfile";
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -188,12 +211,10 @@ class MyApp extends StatelessWidget {
         home: StreamBuilder<User?>(
           stream: FirebaseAuth.instance.authStateChanges(),
           builder: (context, snapshot) {
-            debugPrint("📡 [StreamBuilder] snapshot.connectionState = ${snapshot.connectionState}");
-            debugPrint("📡 [StreamBuilder] snapshot.hasData = ${snapshot.hasData}");
-            debugPrint("📡 [StreamBuilder] snapshot.data = ${snapshot.data}");
-            debugPrint("👀 [DEBUG] snapshot.data: ${snapshot.data}");
+            debugPrint("📡 snapshot.connectionState = ${snapshot.connectionState}");
+            debugPrint("📡 snapshot.hasData = ${snapshot.hasData}");
+            debugPrint("📡 snapshot.data = ${snapshot.data}");
             if (snapshot.connectionState == ConnectionState.waiting) {
-              print("⏳ Esperando conexión de FirebaseAuth...");
               return const Scaffold(
                 body: Center(child: CircularProgressIndicator()),
               );
@@ -212,7 +233,6 @@ class MyApp extends StatelessWidget {
               future: _checkUserState(user),
               builder: (context, snap) {
                 if (snap.connectionState == ConnectionState.waiting) {
-                  print("⏳ Esperando Firestore para usuario ${user.uid}...");
                   return const Scaffold(
                     body: Center(child: CircularProgressIndicator()),
                   );
@@ -224,8 +244,6 @@ class MyApp extends StatelessWidget {
                     body: Center(child: Text("Error cargando usuario")),
                   );
                 }
-
-                print("🧭 Resultado del _checkUserState: ${snap.data}");
 
                 switch (snap.data) {
                   case "noProfile":

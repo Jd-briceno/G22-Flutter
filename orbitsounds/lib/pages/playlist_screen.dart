@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
 import 'package:melodymuse/pages/music_detail_screen.dart';
 import '../models/track_model.dart';
 import '../services/spotify_service.dart';
@@ -115,45 +116,86 @@ class _PlaylistScreenState extends State<PlaylistScreen>
   }
 
   Future<void> _loadTracks() async {
-    final playlists = await _spotifyService.getGenrePlaylists(widget.genre);
-    if (playlists.isEmpty) {
-      setState(() => isLoading = false);
-      return;
-    }
+    final boxName = 'playlist_${widget.genre}';
+    print("🎧 Cargando playlist del género: ${widget.genre}");
 
-    final playlistId = playlists.first['id'];
-    final fetchedTracks = await _spotifyService.getPlaylistTracks(playlistId);
+    try {
+      final playlists = await _spotifyService.getGenrePlaylists(widget.genre);
+      print("📀 Playlists obtenidas desde Spotify: ${playlists.length}");
 
-    final durationMs = fetchedTracks.fold<int>(
-      0,
-      (sum, track) => sum + track.durationMs,
-    );
+      if (playlists.isEmpty || playlists.first == null) {
+        print("⚠️ No se encontraron playlists válidas para '${widget.genre}'");
+        throw Exception("Playlist vacía o nula");
+      }
 
-    setState(() {
-      tracks = fetchedTracks;
-      totalDuration = Duration(milliseconds: durationMs);
-      isLoading = false;
-    });
+      final firstPlaylist = playlists.first;
+      final playlistId = firstPlaylist['id'] ?? firstPlaylist['playlistId'];
 
-    // 👇👇👇 AGREGA ESTO AQUÍ 👇👇👇
-    if (widget.startTime != null) {
-      final endTime = DateTime.now();
-      final loadTime = endTime.difference(widget.startTime!).inMilliseconds;
-      final withinTarget = loadTime <= 8000;
+      if (playlistId == null) {
+        print("🚫 Playlist no tiene ID: $firstPlaylist");
+        throw Exception("Playlist sin ID válida");
+      }
 
-      await _analytics.logEvent(
-        name: 'playlist_loaded',
-        parameters: {
-          'genre': widget.genre,
-          'load_time_ms': loadTime,
-          'within_target': withinTarget ? 'true' : 'false', // ✅ string
-          'timestamp': widget.startTime!.toIso8601String(),
-        },
+      print("🎵 Usando playlist ID: $playlistId");
+      final fetchedTracks = await _spotifyService.getPlaylistTracks(playlistId);
+      print("🎶 Canciones obtenidas: ${fetchedTracks.length}");
+
+      // 💾 Guarda localmente los tracks en Hive
+      final box = await Hive.openBox(boxName);
+      await box.put('tracks', fetchedTracks.map((t) => t.toMap()).toList());
+      print("✅ Playlist '${widget.genre}' cacheada localmente (${fetchedTracks.length} tracks)");
+
+      // 🕒 Calcula duración total
+      final durationMs = fetchedTracks.fold<int>(
+        0,
+        (sum, track) => sum + track.durationMs,
       );
 
-      debugPrint("📊 Playlist loaded → genre=${widget.genre}, loadTime=${loadTime}ms, withinTarget=$withinTarget");
+      setState(() {
+        tracks = fetchedTracks;
+        totalDuration = Duration(milliseconds: durationMs);
+        isLoading = false;
+      });
+
+      // 📈 Métrica de carga
+      if (widget.startTime != null) {
+        final endTime = DateTime.now();
+        final loadTime = endTime.difference(widget.startTime!).inMilliseconds;
+        final withinTarget = loadTime <= 8000;
+
+        await _analytics.logEvent(
+          name: 'playlist_loaded',
+          parameters: {
+            'genre': widget.genre,
+            'load_time_ms': loadTime,
+            'within_target': withinTarget ? 'true' : 'false',
+            'timestamp': widget.startTime!.toIso8601String(),
+          },
+        );
+      }
+
+    } catch (e, st) {
+      print("⚠️ No se pudo cargar desde Spotify, usando caché local... ($e)");
+      print(st);
+      final box = await Hive.openBox(boxName);
+      final cached = box.get('tracks', defaultValue: []) as List<dynamic>;
+
+      if (cached.isNotEmpty) {
+        setState(() {
+          tracks = cached.map((m) => Track.fromMap(Map<String, dynamic>.from(m))).toList();
+          totalDuration = Duration(
+            milliseconds: tracks.fold(0, (sum, t) => sum + t.durationMs),
+          );
+          isLoading = false;
+        });
+        print("📦 Playlist '${widget.genre}' cargada desde caché (${tracks.length} tracks)");
+      } else {
+        setState(() => isLoading = false);
+        print("🚫 No hay datos en caché para '${widget.genre}'");
+      }
     }
   }
+
 
 
   Future<void> _loadAIDescription() async {

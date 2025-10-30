@@ -5,15 +5,33 @@ class HiveService {
   static Future<void> init() async {
     await Hive.initFlutter();
     await Hive.openBox('settings');
+    await Hive.openBox('trackCache'); // 🆕 Box para caché de canciones
   }
 
-  static Box get box => Hive.box('settings');
+  static Box get settingsBox => Hive.box('settings');
+  static Box get trackCacheBox => Hive.box('trackCache');
 
-  static void setRememberMe(bool value) => box.put('rememberMe', value);
+  // ⚙️ Preferencias de usuario
+  static void setRememberMe(bool value) => settingsBox.put('rememberMe', value);
+  static bool getRememberMe() => settingsBox.get('rememberMe', defaultValue: false);
 
-  static bool getRememberMe() => box.get('rememberMe', defaultValue: false);
+  static void setThemeMode(bool darkMode) => settingsBox.put('darkMode', darkMode);
+  static bool isDarkMode() => settingsBox.get('darkMode', defaultValue: false);
 
-  static void setThemeMode(bool darkMode) => box.put('darkMode', darkMode);
+  // 💾 Métodos de caché de tracks
+  static Future<void> saveTracks(String playlistId, List<Map<String, dynamic>> tracks) async {
+    await trackCacheBox.put(playlistId, tracks);
+  }
 
-  static bool isDarkMode() => box.get('darkMode', defaultValue: false);
+  static List<Map<String, dynamic>>? getTracks(String playlistId) {
+    final cached = trackCacheBox.get(playlistId);
+    if (cached != null) {
+      return List<Map<String, dynamic>>.from(cached);
+    }
+    return null;
+  }
+
+  static Future<void> clearTrackCache() async {
+    await trackCacheBox.clear();
+  }
 }
