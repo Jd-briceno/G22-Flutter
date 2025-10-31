@@ -20,6 +20,8 @@ class _AresRecommendationsScreenState extends State<AresRecommendationsScreen> {
   Playlist? _playlist;
   bool _loading = false;
   StreamSubscription<double>? _progressSub;
+  List<String> likedGenres = [];
+  List<String> likedSongs = [];
 
   Future<void> _generatePlaylist() async {
     await _progressSub?.cancel();
@@ -52,7 +54,7 @@ class _AresRecommendationsScreenState extends State<AresRecommendationsScreen> {
           .where('liked', isEqualTo: true)
           .get();
 
-      final likedSongs = likedSongsSnap.docs
+      likedSongs = likedSongsSnap.docs
           .map((d) => d['title'] as String)
           .where((title) => title.isNotEmpty)
           .toList();
@@ -65,7 +67,7 @@ class _AresRecommendationsScreenState extends State<AresRecommendationsScreen> {
           .where('achieved', isEqualTo: true)
           .get();
 
-      final likedGenres = goalsSnap.docs
+      likedGenres = goalsSnap.docs
           .map((d) => d['genre'] as String)
           .where((g) => g.isNotEmpty)
           .toList();
@@ -76,6 +78,23 @@ class _AresRecommendationsScreenState extends State<AresRecommendationsScreen> {
         likedSongs: likedSongs,
         interests: interests,
       );
+
+      // 🔹 Guardar playlist generada en Firestore
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('playlists')
+          .add({
+        'title': playlist?.title ?? 'Untitled Playlist',
+        'description': playlist?.description ?? 'Personalized playlist generated for you.',
+        'tracks': (playlist?.tracks ?? []).map((t) => {
+              'title': t.title,
+              'artist': t.artist,
+              'albumArt': t.albumArt,
+              'duration': t.duration,
+            }).toList(),
+        'createdAt': FieldValue.serverTimestamp(),
+      });
 
       if (!mounted) return;
       setState(() {
@@ -304,9 +323,9 @@ class _AresRecommendationsScreenState extends State<AresRecommendationsScreen> {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          const Text(
-                            "Based on your recommendations, interests, liked songs and most listened genres",
-                            style: TextStyle(
+                          Text(
+                            "Based on your recommendations, interests, liked songs and most listened genres. Because you've been listening to ${likedGenres.isNotEmpty ? likedGenres.first : 'your favorite genres'} and songs like ${likedSongs.isNotEmpty ? likedSongs.first : 'your recent favorites'} 🎧",
+                            style: const TextStyle(
                               color: Color(0xFF8C1007),
                               fontFamily: "RobotoMono",
                               fontSize: 14,
