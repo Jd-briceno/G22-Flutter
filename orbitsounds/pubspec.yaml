@@ -69,9 +69,10 @@ dependencies:
   #Country
   country_picker: ^2.0.25
   #Shared
-  shared_preferences: ^2.2.3 
+  shared_preferences: ^2.3.2 
   #Icons
   feather_icons: ^1.2.0
+  heroicons: ^0.9.0
   #Audio
   just_audio: ^0.9.42
   #Notifications
@@ -107,10 +108,8 @@ dev_dependencies:
   flutter_lints: ^5.0.0
   #For fonts
   google_fonts: ^6.1.0
-  # Hero Icons
-  heroicons: ^0.9.0
   #Feather icons
-  flutter_feather_icons: ^2.0.0+1
+  #flutter_feather_icons: ^2.0.0+1
   #HIVE
   build_runner: ^2.4.6
   hive_generator: ^2.0.1
@@ -161,6 +160,7 @@ flutter:
   assets:
     - assets/audio/   # 🎵 Your emotion sound files
     - assets/images/  # 🧸 Mascot and other images
+    - assets/images/default_avatar.png
     - assets/medals/  # Medals
     - .env #ENV
   fonts:

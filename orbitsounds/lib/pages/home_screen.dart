@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:melodymuse/pages/mood_playlist_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:heroicons/heroicons.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'package:melodymuse/components/navbar.dart';
 import 'package:melodymuse/components/song_reproductor.dart';
@@ -24,6 +25,7 @@ import '../services/playback_manager_service.dart';
 import '../models/track_model.dart';
 
 
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -33,7 +35,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   final WeatherService _weatherService = WeatherService();
-  Weather? _weather;
+  //Weather? _weather;
+  WeatherModel? _weather;
   bool _locationError = false;
   // 🔹 Variables del perfil desde Firebase
   String? nickname;
@@ -120,13 +123,15 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> _loadWeather() async {
     try {
       Position position = await _determinePosition();
-      final weather = await _weatherService.fetchWeather(
+      //final weather = await _weatherService.fetchWeather(
+      final weatherData = await _weatherService.fetchWeather(
         position.latitude,
         position.longitude,
       );
 
       setState(() {
-        _weather = weather;
+        //_weather = weather;
+        _weather = weatherData;
         _locationError = false;
       });
 
@@ -301,6 +306,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 profileImage: (profileImageUrl != null && profileImageUrl!.isNotEmpty)
                     ? profileImageUrl!
                     : "assets/images/default_profile.jpg",
+                weather: _weather, // 🔹 Nuevo parámetro para mostrar el clima
               ),
               const SizedBox(height: 20),
 

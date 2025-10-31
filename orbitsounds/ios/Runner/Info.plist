@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -20,10 +22,47 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.84892838356-2858rsiau5chjc53uaia020afrbiqqmv</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Se requiere acceso a la cámara para capturar tu imagen de perfil.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Permite que la app personalice tu experiencia musical incluso cuando se ejecuta en segundo plano.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Permite enviar notificaciones relacionadas con tu actividad incluso en segundo plano.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Se necesita acceso a la ubicación para personalizar la experiencia musical y mostrar notificaciones contextuales.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Necesitamos acceso al micrófono para que puedas grabar notas de voz en el Captain’s Log.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Se requiere acceso a tu galería para seleccionar o subir fotos.</string>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>Se usa para personalizar tu experiencia musical y de recomendaciones.</string>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
@@ -41,59 +80,7 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>CADisableMinimumFrameDurationOnPhone</key>
-	<true/>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
-	<true/>
-
-	<!-- 🔹 Configuración necesaria para Google Sign-In -->
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeRole</key>
-			<string>Editor</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>com.googleusercontent.apps.84892838356-2858rsiau5chjc53uaia020afrbiqqmv</string>
-			</array>
-		</dict>
-	</array>
-
-	<!-- 🔹 Permisos de red requeridos por Firebase -->
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<true/>
-	</dict>
-
-	<!-- 🔸 Permisos de privacidad requeridos -->
-	<key>NSUserTrackingUsageDescription</key>
-	<string>Se usa para personalizar tu experiencia musical y de recomendaciones.</string>
-	<key>NSCameraUsageDescription</key>
-	<string>Se requiere acceso a la cámara para capturar tu imagen de perfil.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Se requiere acceso a tu galería para seleccionar o subir fotos.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Necesitamos acceso al micrófono para que puedas grabar notas de voz en el Captain’s Log.</string>
-
-	<!-- 🛑 Permisos requeridos por permission_handler y geolocalización -->
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Permite que la app personalice tu experiencia musical incluso cuando se ejecuta en segundo plano.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Se necesita acceso a la ubicación para personalizar la experiencia musical y mostrar notificaciones contextuales.</string>
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>Permite enviar notificaciones relacionadas con tu actividad incluso en segundo plano.</string>
-
-	<!-- 🔔 Permisos para notificaciones locales -->
 	<key>UNUserNotificationCenterUsageDescription</key>
 	<string>La app necesita enviar notificaciones sobre tu actividad musical, logros y recordatorios.</string>
-
-	<!-- ⚙️ Soporte para tareas en segundo plano (notificaciones, fetch, etc.) -->
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>fetch</string>
-		<string>remote-notification</string>
-	</array>
-
 </dict>
 </plist>
