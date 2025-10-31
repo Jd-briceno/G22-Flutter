@@ -11,6 +11,10 @@ import 'package:melodymuse/pages/settings_page.dart';
 import 'package:provider/provider.dart';
 import 'package:melodymuse/services/playback_manager_service.dart';
 import 'package:melodymuse/pages/music_detail_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'dart:convert';
+import 'dart:io'; // for FileImage
 
 class ProfileBackstagePage extends StatefulWidget {
   const ProfileBackstagePage({super.key});
@@ -20,6 +24,160 @@ class ProfileBackstagePage extends StatefulWidget {
 }
 
 class _ProfileBackstagePageState extends State<ProfileBackstagePage> {
+
+  bool isOffline = false;
+  late Future<Map<String, dynamic>> _userFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null) {
+      _userFuture = _getUserData(currentUser.uid);
+    } else {
+      _userFuture = Future.value({});
+    }
+  }
+
+  // Keep a tiny JSON-safe cache with only the fields the UI needs
+  Map<String, dynamic> _toCache(Map<String, dynamic> data) {
+    Map<String, dynamic> out = {
+      'nickname': data['nickname']?.toString(),
+      'fullName': data['fullName']?.toString(),
+      'title': data['title']?.toString(),
+      'profileStage': data['profileStage']?.toString(),
+      'description': data['description']?.toString(),
+      'bio': data['bio']?.toString(),
+      'about': data['about']?.toString(),
+      'profileImageUrl': data['profileImageUrl']?.toString(),
+      'updatedAt': (data['updatedAt'] is Timestamp)
+          ? (data['updatedAt'] as Timestamp).millisecondsSinceEpoch
+          : (data['updatedAt'] is int ? data['updatedAt'] : null),
+    };
+    // drop nulls to keep it clean
+    out.removeWhere((k, v) => v == null);
+    return out;
+  }
+
+  Map<String, dynamic> _fromCache(Map<String, dynamic> cache) {
+    final out = Map<String, dynamic>.from(cache);
+    final ts = out['updatedAt'];
+    if (ts is int) {
+      out['updatedAt'] = Timestamp.fromMillisecondsSinceEpoch(ts);
+    }
+    return out;
+  }
+
+  Future<Map<String, dynamic>> _getUserData(String userId) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // Simplified: always return a valid map (never null, never throws)
+    Map<String, dynamic> loadFromCache({bool markOffline = false}) {
+      final cachedString = prefs.getString('cached_user_data');
+      if (cachedString == null || cachedString.isEmpty) {
+        if (markOffline) isOffline = true;
+        return <String, dynamic>{};
+      }
+      try {
+        final raw = jsonDecode(cachedString);
+        if (raw is Map<String, dynamic>) {
+          if (markOffline) isOffline = true;
+          return _fromCache(raw);
+        }
+      } catch (_) {}
+      if (markOffline) isOffline = true;
+      return <String, dynamic>{};
+    }
+
+    // 1. Always show cached data instantly if available, before any network call
+    final cachedUser = loadFromCache();
+    if (cachedUser.isNotEmpty) {
+      // Mark offline only if we end up using cache as fallback, not here
+      // Show cached data immediately
+      if (mounted) setState(() {});
+    }
+
+    // 2. Continue with normal logic, but always run Firestore fetch after showing cache
+    // --- Sincronización local incremental y verificación de último fetch ---
+    final lastFetchMillis = prefs.getInt('last_fetch_user_data') ?? 0;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (now - lastFetchMillis < 30000) {
+      final cachedString = prefs.getString('cached_user_data');
+      if (cachedString != null) {
+        print("🕒 Datos recientes en caché (<30s), usando versión local.");
+        // Already setState above if cache was present
+        return _fromCache(jsonDecode(cachedString));
+      }
+    }
+
+    try {
+      final connectivity = await Connectivity().checkConnectivity();
+      if (connectivity == ConnectivityResult.none) {
+        print("📡 Sin conexión. Usando datos en caché.");
+        isOffline = true;
+        if (mounted) setState(() {}); // 🔧 Muestra el banner inmediatamente
+        return loadFromCache(markOffline: true);
+      }
+
+      // Intento principal: leer desde Firestore con fallback local si hay fallo
+      DocumentSnapshot<Map<String, dynamic>>? doc;
+      try {
+        doc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .get(const GetOptions(source: Source.serverAndCache));
+      } on FirebaseException catch (e) {
+        if (e.code == 'unavailable') {
+          print("⚠️ Firestore no disponible. Intentando leer desde caché...");
+          doc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(userId)
+              .get(const GetOptions(source: Source.cache));
+        } else {
+          rethrow;
+        }
+      }
+
+      final data = doc?.data();
+      if (data == null) {
+        print("⚠️ Documento del usuario no existe o está vacío. Recurriendo a caché.");
+        isOffline = true;
+        return loadFromCache(markOffline: true);
+      }
+
+      // Cachear los datos obtenidos
+      final compact = _toCache(Map<String, dynamic>.from(data));
+      await prefs.setString('cached_user_data', jsonEncode(compact));
+      await prefs.setInt('last_fetch_user_data', DateTime.now().millisecondsSinceEpoch);
+      isOffline = false;
+      print("✅ Datos del usuario obtenidos desde Firestore y cacheados correctamente.");
+      // If new data is different, update UI
+      if (mounted) setState(() {});
+      return data;
+    } catch (e) {
+      print("❌ Error al obtener datos del usuario (Firestore): $e");
+      final cached = loadFromCache(markOffline: true);
+      if (cached.isNotEmpty) {
+        print("📦 Mostrando datos del usuario desde caché tras error.");
+        isOffline = true;
+        if (mounted) setState(() {});
+        return cached;
+      }
+      print("⚠️ Sin datos en caché válidos. Devolviendo mapa vacío.");
+      isOffline = true;
+      // --- Cola de reintentos para reconexión eventual ---
+      Connectivity().onConnectivityChanged.listen((result) async {
+        if (result != ConnectivityResult.none) {
+          print("🌐 Conectividad restaurada. Reintentando sincronización de perfil...");
+          await _getUserData(userId);
+          // Refresca la UI para mostrar/hide el banner offline al volver de otras pantallas
+          if (mounted) setState(() {});
+        }
+      });
+      return <String, dynamic>{};
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentUser = FirebaseAuth.instance.currentUser;
@@ -40,9 +198,8 @@ class _ProfileBackstagePageState extends State<ProfileBackstagePage> {
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
-        child: FutureBuilder<DocumentSnapshot>(
-          future:
-              FirebaseFirestore.instance.collection('users').doc(userId).get(),
+        child: FutureBuilder<Map<String, dynamic>>(
+          future: _userFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(
@@ -59,16 +216,43 @@ class _ProfileBackstagePageState extends State<ProfileBackstagePage> {
               );
             }
 
-            if (!snapshot.hasData || !snapshot.data!.exists) {
+            if (!snapshot.hasData) {
               return const Center(
-                child: Text(
-                  "No se encontraron datos del usuario.",
-                  style: TextStyle(color: Colors.white),
-                ),
+                child: CircularProgressIndicator(color: Colors.white),
               );
             }
 
-            final userData = snapshot.data!.data() as Map<String, dynamic>;
+            final userData = snapshot.data ?? <String, dynamic>{};
+
+            // Debug prints for userData keys
+            print("🟢 userData keys: ${userData.keys}");
+            print("🟢 nickname: ${userData['nickname']}");
+            print("🟢 title: ${userData['title']}");
+            print("🟢 description: ${userData['description']}");
+            print("🟢 fullName: ${userData['fullName']}");
+            print("🟢 bio: ${userData['bio']}");
+            print("🟢 about: ${userData['about']}");
+            print("🟢 profileImageUrl: ${userData['profileImageUrl']}");
+
+            // Banner offline persistente
+            Widget offlineBanner = Container();
+            if (isOffline) {
+              offlineBanner = Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                color: Colors.amberAccent,
+                child: const Center(
+                  child: Text(
+                    "🛰️ Modo offline",
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+              );
+            }
 
             return SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
@@ -77,10 +261,20 @@ class _ProfileBackstagePageState extends State<ProfileBackstagePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
+                    // Siempre muestra el banner offline arriba si está offline, incluso tras volver de otras pantallas
+                    offlineBanner,
                     const SizedBox(height: 20),
                     Navbar(
-                      username: "Jay Walker",
-                      title: "Lightning Ninja",
+                      username: userData['nickname']?.toString().isNotEmpty == true
+                          ? userData['nickname']
+                          : (userData['fullName']?.toString().isNotEmpty == true
+                              ? userData['fullName']
+                              : 'Sin nombre'),
+                      title: userData['title']?.toString().isNotEmpty == true
+                          ? userData['title']
+                          : (userData['profileStage']?.toString().isNotEmpty == true
+                              ? userData['profileStage']
+                              : 'Sin título'),
                       subtitle: "Command Profile",
                       profileWidget: GestureDetector(
                         onTap: () {
@@ -96,39 +290,56 @@ class _ProfileBackstagePageState extends State<ProfileBackstagePage> {
                           size: 28,
                         ),
                       ),
-
                     ),
                     const SizedBox(height: 0),
-
                     BackstageCard(
                       isPremium: false,
-                      avatarUrl: userData['profileImageUrl'] ??
-                          'assets/images/default_avatar.png',
-                      isAsset: userData['profileImageUrl']
-                              ?.startsWith('assets/') ??
-                          false,
-                      username: userData['nickname'] ?? 'Sin nombre',
-                      title: userData['title'] ?? 'Sin título',
-                      description: userData['description'] ?? 'Sin descripción',
-                      qrData:
-                          "https://tuapp.com/user/${userData['nickname'] ?? 'user'}",
+                      avatarUrl: userData['profileImageUrl'] ?? 'assets/images/default_avatar.png',
+                      isAsset: false,
+                      username: userData['nickname']?.toString().isNotEmpty == true
+                          ? userData['nickname']
+                          : (userData['fullName']?.toString().isNotEmpty == true
+                              ? userData['fullName']
+                              : 'Sin nombre'),
+                      title: userData['title']?.toString().isNotEmpty == true
+                          ? userData['title']
+                          : (userData['profileStage']?.toString().isNotEmpty == true
+                              ? userData['profileStage']
+                              : 'Sin título'),
+                      description: userData['description']?.toString().isNotEmpty == true
+                          ? userData['description']
+                          : (userData['bio']?.toString().isNotEmpty == true
+                              ? userData['bio']
+                              : (userData['about']?.toString().isNotEmpty == true
+                                  ? userData['about']
+                                  : 'Sin descripción')),
+                      qrData: "https://tuapp.com/user/${userData['nickname'] ?? 'user'}",
                       onEditPressed: () async {
                         await Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) =>
-                                EditProfilePage(userData: userData),
+                            builder: (_) => EditProfilePage(userData: userData),
                           ),
                         );
-                        setState(() {}); // 🔁 Refresca al volver
+                        setState(() {});
                       },
+                      customImageProvider: () {
+                        final path = userData['profileImageUrl']?.toString() ?? '';
+                        if (path.isEmpty) {
+                          return const AssetImage('assets/images/default_avatar.png');
+                        } else if (path.startsWith('http')) {
+                          return NetworkImage(path) as ImageProvider<Object>;
+                        } else if (File(path).existsSync()) {
+                          return FileImage(File(path)) as ImageProvider<Object>;
+                        } else {
+                          return const AssetImage('assets/images/default_avatar.png');
+                        }
+                      }(),
                     ),
-
                     CustomPaint(
                       size: const Size(320, 2),
                       painter: DottedLinePainter(),
                     ),
-
                     Container(
                       width: 320,
                       height: 390,

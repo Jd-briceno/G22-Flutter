@@ -237,7 +237,7 @@ class _LoginPageState extends State<LoginPage> {
                       // 👇 Ahora fuerza rebuild global (MyApp volverá a ejecutarse)
                       if (mounted) {
                         Navigator.of(context).pushReplacement(
-                          MaterialPageRoute(builder: (_) => const MyApp()),
+                          MaterialPageRoute(builder: (_) => MyApp()),
                         );
                       }
                     },

@@ -139,7 +139,7 @@ final List<Emotion> _allEmotions = [
 
 
 class _LongbookState extends State<Longbook> {
-  Future<Weather?>? _weatherFuture;
+  Future<WeatherModel?>? _weatherFuture;
   String? _latestConstellationEmotion;
   final FirebaseAnalytics analytics = FirebaseAnalytics.instance;
 
@@ -168,12 +168,15 @@ class _LongbookState extends State<Longbook> {
   Future<void> _logLongbookOpened() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
+      final params = <String, Object>{
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+      if (user != null) {
+        params['user_id'] = user.uid;
+      }
       await analytics.logEvent(
         name: 'longbook_opened',
-        parameters: {
-          'user_id': ?user?.uid,
-          'timestamp': DateTime.now().toIso8601String(),
-        },
+        parameters: params,
       );
       debugPrint("📊 Analytics: longbook_opened enviado");
     } catch (e) {
@@ -326,7 +329,7 @@ class _LongbookState extends State<Longbook> {
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       setState(() {
-        _weatherFuture = Future.value(null);
+        _weatherFuture = Future<WeatherModel?>.value(null);
       });
       return;
     }
@@ -336,7 +339,7 @@ class _LongbookState extends State<Longbook> {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.denied) {
         setState(() {
-          _weatherFuture = Future.value(null);
+          _weatherFuture = Future<WeatherModel?>.value(null);
         });
         return;
       }
@@ -344,7 +347,7 @@ class _LongbookState extends State<Longbook> {
 
     if (permission == LocationPermission.deniedForever) {
       setState(() {
-        _weatherFuture = Future.value(null);
+        _weatherFuture = Future<WeatherModel?>.value(null);
       });
       return;
     }
@@ -527,7 +530,7 @@ class _LongbookState extends State<Longbook> {
                       Positioned(
                         left: 85,
                         top: 395,
-                        child: FutureBuilder<Weather?>(
+                        child: FutureBuilder<WeatherModel?>(
                           future: _weatherFuture,
                           builder: (context, snapshot) {
                             if (snapshot.connectionState ==

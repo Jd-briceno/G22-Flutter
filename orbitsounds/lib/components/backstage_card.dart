@@ -14,6 +14,7 @@ class BackstageCard extends StatelessWidget {
   final String qrData;
   final String backgroundAsset;
   final VoidCallback? onEditPressed; // 👈 nuevo parámetro
+  final ImageProvider? customImageProvider;
 
   const BackstageCard({
     super.key,
@@ -26,6 +27,7 @@ class BackstageCard extends StatelessWidget {
     this.isAsset = false,
     this.backgroundAsset = 'assets/images/Perfil.png',
     this.onEditPressed,
+    this.customImageProvider,
   });
 
   ImageProvider _getImageProvider(String url, bool isAsset) {
@@ -45,6 +47,8 @@ class BackstageCard extends StatelessWidget {
     final avatarSize = 96.0;
     final qrSize = 100.0;
     final avatarImage = _getImageProvider(avatarUrl, isAsset);
+    // 👇 indicador de carga eventual
+    final isLoading = username.isEmpty || description.isEmpty;
 
     return Stack(
       children: [
@@ -84,7 +88,8 @@ class BackstageCard extends StatelessWidget {
                           ),
                         ],
                         image: DecorationImage(
-                          image: avatarImage,
+                          image: customImageProvider ??
+                              _getImageProvider(avatarUrl, isAsset),
                           fit: BoxFit.cover,
                         ),
                       ),
@@ -182,6 +187,49 @@ class BackstageCard extends StatelessWidget {
             ),
           ),
         ),
+
+        // 👇 Indicador de carga eventual
+        if (isLoading)
+          Positioned(
+            top: 12,
+            left: 12,
+            child: Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.85),
+                borderRadius: BorderRadius.circular(8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Color(0XFF010B19),
+                    ),
+                  ),
+                  SizedBox(width: 6),
+                  Text(
+                    "Loading cache...",
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0XFF010B19),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
       ],
     );
   }

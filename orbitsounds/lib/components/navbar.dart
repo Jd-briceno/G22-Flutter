@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:heroicons/heroicons.dart';
-import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'package:feather_icons/feather_icons.dart';
 import 'dart:io';
+
+import '../models/weather_model.dart';
+import '../services/weather_service.dart';
+
 
 class Navbar extends StatelessWidget {
   final String username;
@@ -10,6 +14,7 @@ class Navbar extends StatelessWidget {
   final String? profileImage; // 👈 opcional ahora
   final Widget? profileWidget; // 👈 nuevo
   final String? subtitle;
+  final WeatherModel? weather;
 
   const Navbar({
     super.key,
@@ -18,6 +23,7 @@ class Navbar extends StatelessWidget {
     this.profileImage,
     this.profileWidget,
     this.subtitle,
+    this.weather,
   });
 
   ImageProvider _imageProviderFor(String path) {
@@ -38,7 +44,7 @@ class Navbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 110,
+      height: 150,
       width: double.infinity,
       child: Stack(
         children: [
@@ -102,6 +108,24 @@ class Navbar extends StatelessWidget {
                       offset: const Offset(0, 0),
                     ),
                   ],
+                ),
+              ),
+            ),
+          ),
+
+          // ═════════════ Rectángulo superior (barra título) ═════════════
+          Positioned(
+            left: 21,
+            top: 1,
+            child: Container(
+              width: 300,
+              height: 30,
+              decoration: BoxDecoration(
+                color: const Color(0xFF010B19),
+                border: Border.all(color: Color(0xFFB4B1B8), width: 2),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(8),
+                  topRight: Radius.circular(8),
                 ),
               ),
             ),
@@ -298,6 +322,75 @@ class Navbar extends StatelessWidget {
               height: 14,
               child: CustomPaint(painter: _XPainter()),
             ),
+          ),
+
+          // ═════════════ Clima minimalista (texto + ícono) ═════════════
+          Positioned(
+            left: 10,
+            top: 100,
+            child: weather != null
+                ? Material(
+                    type: MaterialType.transparency,
+                    child: Transform.translate(
+                      offset: const Offset(-4, 2),
+                      child: Row(
+                        children: [
+                          TweenAnimationBuilder<double>(
+                            tween: Tween(begin: 0.8, end: 1.0),
+                            duration: const Duration(seconds: 2),
+                            curve: Curves.easeInOut,
+                            builder: (context, value, child) {
+                              return Transform.scale(
+                                scale: value,
+                                child: Opacity(
+                                  opacity: value,
+                                  child: HeroIcon(
+                                    weather!.iconData,
+                                    style: HeroIconStyle.solid,
+                                    color: weather!.iconColor,
+                                    size: 18,
+                                  ),
+                                ),
+                              );
+                            },
+                            onEnd: () {
+                              Future.delayed(const Duration(milliseconds: 100), () {
+                                (context as Element).markNeedsBuild();
+                              });
+                            },
+                          ),
+                          const SizedBox(width: 6),
+                          TweenAnimationBuilder<double>(
+                            tween: Tween(begin: 0.8, end: 1.0),
+                            duration: const Duration(seconds: 2),
+                            curve: Curves.easeInOut,
+                            builder: (context, value, child) {
+                              return Opacity(
+                                opacity: value,
+                                child: Transform.scale(
+                                  scale: value,
+                                  child: Text(
+                                    '${weather!.description} ${weather!.temperature}°C',
+                                    style: GoogleFonts.orbitron(
+                                      fontSize: 12,
+                                      color: const Color(0xFFE9E8EE),
+                                      letterSpacing: 1.2,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                            onEnd: () {
+                              Future.delayed(const Duration(milliseconds: 150), () {
+                                (context as Element).markNeedsBuild();
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : const SizedBox.shrink(),
           ),
         ],
       ),
