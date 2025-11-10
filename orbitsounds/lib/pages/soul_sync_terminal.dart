@@ -1,12 +1,11 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:melodymuse/components/navbar.dart';
-import 'package:melodymuse/pages/celestial_signal.dart';
+import 'package:orbitsounds/components/navbar.dart';
+import 'package:orbitsounds/pages/celestial_signal.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
-import 'package:firebase_analytics/observer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
@@ -118,7 +117,7 @@ Future<void> _syncCachedEmotions() async {
 }
 
   //Usuario actual
-  String? _getCurrentUserId() {
+  String _getCurrentUserId() {
     final user = FirebaseAuth.instance.currentUser;
     return user?.uid ?? "guest";
   }
@@ -131,7 +130,7 @@ Future<void> _syncCachedEmotions() async {
         "emotion": emotion,
         "source": source,
         "timestamp": FieldValue.serverTimestamp(),
-        "userId": "guest", // aquí reemplaza si usas Firebase Auth
+        "userId": _getCurrentUserId(), // aquí reemplaza si usas Firebase Auth
       });
 
       print("✅ Emoción guardada en Firestore: $emotion ($source)");
@@ -263,7 +262,7 @@ Future<void> _syncCachedEmotions() async {
 
       // 🌐 2️⃣ Si hay conexión real, sube en background (sin bloquear)
       if (await _isOnline()) {
-        unawaited(_uploadSessionToFirestore(uid!, sessionId));
+        unawaited(_uploadSessionToFirestore(uid, sessionId));
       }
 
       // 🔹 3️⃣ Analytics (también solo si hay red)
@@ -271,9 +270,9 @@ Future<void> _syncCachedEmotions() async {
         if (await _isOnline()) {
           await FirebaseAnalytics.instance.logEvent(
             name: 'session_created',
-            parameters: {
+            parameters: <String, Object>{
               'session_id': sessionId,
-              'user_id': ?uid,
+              'user_id': uid,
               'emotion_count': _selectedEmotions.length,
               'emotions': _selectedEmotions.join(', '),
             },
@@ -347,7 +346,7 @@ Future<void> _trySyncSessionOnline(String uid, String sessionId, List<String> em
     // 🔹 Registrar evento en Analytics
     await FirebaseAnalytics.instance.logEvent(
       name: 'session_created',
-      parameters: {
+      parameters: <String, Object>{
         'session_id': sessionId,
         'user_id': uid,
         'emotion_count': emotions.length,
@@ -373,10 +372,10 @@ Future<void> _trySyncSessionOnline(String uid, String sessionId, List<String> em
     // 🔹 Nuevo: registrar en Analytics
     _analytics.logEvent(
       name: 'emotion_selected',
-      parameters: {
+      parameters: <String, Object>{
         'emotion': emotion,
         'source': source, // slider, knob1, knob2
-        'user_id': ?_getCurrentUserId(),
+        'user_id': _getCurrentUserId(),
       },
     );
 
@@ -530,7 +529,7 @@ Future<void> _trySyncSessionOnline(String uid, String sessionId, List<String> em
             const SizedBox(height: 5),
 
             // 📍 Navbar arriba
-            const Navbar(
+            Navbar(
               username: "Jay Walker",
               title: "Lightning Ninja",
               subtitle: "Stellar Emotions",

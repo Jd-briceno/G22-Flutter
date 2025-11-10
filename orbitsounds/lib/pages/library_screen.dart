@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:melodymuse/components/vinyl_cover.dart';
-import 'package:melodymuse/pages/ares_recommendations_screen.dart';
+import 'package:orbitsounds/components/vinyl_cover.dart';
+import 'package:orbitsounds/pages/ares_recommendations_screen.dart';
 import '../components/search_bar.dart';
 import '../components/navbar.dart';
 import '../models/track_model.dart';
@@ -187,7 +187,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                           final newPlaylist = await Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const AresRecommendationsScreen(),
+                              builder: (_) => AresRecommendationsScreen(),
                             ),
                           );
                           if (newPlaylist != null) {

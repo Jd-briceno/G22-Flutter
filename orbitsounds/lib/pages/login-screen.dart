@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:melodymuse/main.dart';
-import 'package:melodymuse/pages/signup_screen.dart';
-import 'package:melodymuse/services/auth_service.dart';
+import 'package:orbitsounds/main.dart';
+import 'package:orbitsounds/pages/signup_screen.dart';
+import 'package:orbitsounds/services/auth_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 

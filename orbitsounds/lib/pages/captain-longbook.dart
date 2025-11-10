@@ -9,7 +9,7 @@ import 'package:heroicons/heroicons.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:melodymuse/pages/longbook_history_screen.dart';
+import 'package:orbitsounds/pages/longbook_history_screen.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 
 import '../services/weather_service.dart';

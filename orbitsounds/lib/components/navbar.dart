@@ -4,8 +4,7 @@ import 'package:heroicons/heroicons.dart';
 import 'package:feather_icons/feather_icons.dart';
 import 'dart:io';
 
-import '../models/weather_model.dart';
-import '../services/weather_service.dart';
+import 'package:orbitsounds/models/weather_model.dart';
 
 
 class Navbar extends StatelessWidget {
@@ -113,23 +112,6 @@ class Navbar extends StatelessWidget {
             ),
           ),
 
-          // ═════════════ Rectángulo superior (barra título) ═════════════
-          Positioned(
-            left: 21,
-            top: 1,
-            child: Container(
-              width: 300,
-              height: 30,
-              decoration: BoxDecoration(
-                color: const Color(0xFF010B19),
-                border: Border.all(color: Color(0xFFB4B1B8), width: 2),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(8),
-                  topRight: Radius.circular(8),
-                ),
-              ),
-            ),
-          ),
 
           // ═════════════ Rectángulo superior (barra título) ═════════════
           Positioned(

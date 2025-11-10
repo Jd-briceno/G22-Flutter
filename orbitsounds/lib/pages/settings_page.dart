@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:melodymuse/services/auth_service.dart';
-import 'package:melodymuse/pages/login-screen.dart';
+import 'package:orbitsounds/services/auth_service.dart';
+
+Map<String, Object> _nonNullParams(Map<String, Object?> raw) {
+  final out = <String, Object>{};
+  raw.forEach((k, v) {
+    if (v != null) out[k] = v;
+  });
+  return out;
+}
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
@@ -11,10 +18,7 @@ class SettingsPage extends StatelessWidget {
       await authService.signOut();
 
       if (context.mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const LoginPage()),
-          (route) => false,
-        );
+        Navigator.of(context).popUntil((route) => route.isFirst);
       }
     } catch (e) {
       debugPrint("❌ Error al cerrar sesión: $e");

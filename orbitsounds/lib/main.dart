@@ -11,32 +11,34 @@ import 'package:firebase_analytics/observer.dart';
 import 'package:hive/hive.dart';
 
 // 🔹 Bases de datos y servicios
-import 'package:melodymuse/database/local_db.dart';
-import 'package:melodymuse/services/hive_service.dart';
-import 'package:melodymuse/services/offline_sync_service.dart';
-import 'firebase_options.dart';
+import 'package:orbitsounds/database/local_db.dart';
+import 'package:orbitsounds/services/hive_service.dart';
+import 'package:orbitsounds/services/offline_sync_service.dart';
+import 'package:orbitsounds/firebase_options.dart';
 
 // 🔹 Provider y servicios
 import 'package:provider/provider.dart';
-import 'package:melodymuse/services/playback_manager_service.dart';
-import 'package:melodymuse/services/notification_service.dart';
-import 'package:melodymuse/services/offline_achievements_service.dart';
+import 'package:orbitsounds/services/notification_service.dart';
+import 'package:orbitsounds/services/offline_achievements_service.dart';
+// Import sin alias: mientras renombramos el Service a ViewModel
+import 'package:orbitsounds/services/playback_manager_service.dart';
 
 // 🔹 Modelo Hive para registrar adaptador
-import 'package:melodymuse/models/track_model.dart';
+import 'package:orbitsounds/models/track_model.dart';
 
 // 🔹 Páginas
-import 'package:melodymuse/pages/final_detail_page.dart';
-import 'package:melodymuse/pages/home_screen.dart';
-import 'package:melodymuse/pages/complete_profile_page.dart';
-import 'package:melodymuse/pages/login-screen.dart';
+import 'package:orbitsounds/pages/final_detail_page.dart';
+import 'package:orbitsounds/pages/home_screen.dart';
+import 'package:orbitsounds/pages/complete_profile_page.dart';
+import 'package:orbitsounds/pages/login-screen.dart';
 
 // 🔹 Instancia global de Analytics
 final FirebaseAnalytics analytics = FirebaseAnalytics.instance;
 
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  print('🚀 Iniciando MelodyMuse main()');
+  print('🚀 Iniciando OrbitSounds main()');
 
   // 🌱 Variables de entorno
   try {
@@ -200,10 +202,10 @@ class MyApp extends StatelessWidget {
     print("🧩 Construyendo MyApp...");
 
     return ChangeNotifierProvider.value(
-      value: PlaybackManagerService(),
+      value: PlaybackManagerViewModel(),
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
-        title: 'MelodyMuse',
+        title: 'OrbitSounds',
         theme: ThemeData.dark(),
         navigatorObservers: [
           FirebaseAnalyticsObserver(analytics: analytics),
