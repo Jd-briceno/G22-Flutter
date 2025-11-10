@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:orbitsounds/services/auth_service.dart';
+import 'package:orbitsounds/viewmodels/auth_viewmodel.dart';
 
 Map<String, Object> _nonNullParams(Map<String, Object?> raw) {
   final out = <String, Object>{};
@@ -13,9 +13,9 @@ class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
   Future<void> _signOut(BuildContext context) async {
-    final authService = AuthService();
+    final authViewModel = AuthViewModel();
     try {
-      await authService.signOut();
+      await authViewModel.signOut();
 
       if (context.mounted) {
         Navigator.of(context).popUntil((route) => route.isFirst);

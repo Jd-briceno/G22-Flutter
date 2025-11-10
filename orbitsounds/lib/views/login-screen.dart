@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:orbitsounds/main.dart';
-import 'package:orbitsounds/pages/signup_screen.dart';
-import 'package:orbitsounds/services/auth_service.dart';
+import 'package:orbitsounds/views/signup_screen.dart';
+import 'package:orbitsounds/viewmodels/auth_viewmodel.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 
@@ -13,7 +13,7 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final AuthService _authService = AuthService();
+  final AuthViewModel _authService = AuthViewModel();
   final TextEditingController emailCtrl = TextEditingController();
   final TextEditingController passCtrl = TextEditingController();
 

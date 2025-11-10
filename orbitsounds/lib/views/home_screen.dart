@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:orbitsounds/pages/mood_playlist_screen.dart';
+import 'package:orbitsounds/views/mood_playlist_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:heroicons/heroicons.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -12,16 +12,16 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:orbitsounds/components/navbar.dart';
 import 'package:orbitsounds/components/song_reproductor.dart';
 import 'package:orbitsounds/components/shortcuts_container.dart';
-import 'package:orbitsounds/pages/captain-longbook.dart';
-import 'package:orbitsounds/pages/library_screen.dart';
-import 'package:orbitsounds/pages/profile.dart';
-import 'package:orbitsounds/pages/social_vinyl.dart';
-import 'package:orbitsounds/pages/soul_sync_terminal.dart';
-import 'package:orbitsounds/pages/music_detail_screen.dart';
+import 'package:orbitsounds/views/captain-longbook.dart';
+import 'package:orbitsounds/views/library_screen.dart';
+import 'package:orbitsounds/views/profile.dart';
+import 'package:orbitsounds/views/social_vinyl.dart';
+import 'package:orbitsounds/views/soul_sync_terminal.dart';
+import 'package:orbitsounds/views/music_detail_screen.dart';
 
 import '../services/weather_service.dart';
 import '../models/weather_model.dart';
-import '../services/playback_manager_service.dart';
+import '../viewmodels/playback_manager_viewmodel.dart';
 import '../models/track_model.dart';
 
 
@@ -87,7 +87,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     }
 
   Future<void> _loadDemoPlaylist() async {
-    final playback = context.read<PlaybackManagerService>();
+    final playback = context.read<PlaybackManagerViewModel>();
 
     if (playback.playlist.isNotEmpty) return;
 
@@ -262,7 +262,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final playback = context.watch<PlaybackManagerService>();
+    final playback = context.watch<PlaybackManagerViewModel>();
     final track = playback.currentTrack;
     final isPlaying = playback.isPlaying;
 
@@ -331,7 +331,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               // 🎧 Mini Reproductor
               GestureDetector(
                 onTap: () {
-                  final playback = context.read<PlaybackManagerService>();
+                  final playback = context.read<PlaybackManagerViewModel>();
                   if (playback.currentTrack != null && playback.playlist.isNotEmpty) {
                     Navigator.push(
                       context,
@@ -375,7 +375,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const MoodPlaylistScreen()),
+                  MaterialPageRoute(builder: (_) => MoodPlaylistScreen()),
                 );
               },
               child: const Icon(Icons.mic, color: Colors.white, size: 28),
@@ -394,7 +394,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           label: "Stellar Emotions",
           onTap: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const SoulSyncTerminal()),
+            MaterialPageRoute(builder: (_) => SoulSyncTerminal()),
           ),
         ),
         ShortcutItem(
@@ -402,7 +402,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           label: "Star Archive",
           onTap: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const LibraryScreen()),
+            MaterialPageRoute(builder: (_) => LibraryScreen()),
           ),
         ),
         ShortcutItem(
@@ -410,7 +410,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           label: "Captain’s Log",
           onTap: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const Longbook()),
+            MaterialPageRoute(builder: (_) => Longbook()),
           ),
         ),
         ShortcutItem(
@@ -418,7 +418,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           label: "Crew Members",
           onTap: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const SocialVinylDemo()),
+            MaterialPageRoute(builder: (_) => SocialVinylDemo()),
           ),
         ),
         ShortcutItem(
@@ -426,7 +426,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           label: "Command Profile",
           onTap: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => const ProfileBackstagePage()),
+            MaterialPageRoute(builder: (_) => ProfileBackstagePage()),
           ),
         ),
       ],

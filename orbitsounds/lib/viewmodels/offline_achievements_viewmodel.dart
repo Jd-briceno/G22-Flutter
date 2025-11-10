@@ -18,7 +18,7 @@ class OfflineAchievementsService {
     return result != ConnectivityResult.none;
   }
 
-  // 💾 Guardar logro localmente (si no hay conexión)
+  /// 💾 Guardar logro localmente (si no hay conexión)
   Future<void> cacheAchievement(String genreName, Map<String, String> achievement) async {
     final prefs = await SharedPreferences.getInstance();
     final cached = prefs.getStringList('cached_achievements') ?? [];
@@ -30,7 +30,7 @@ class OfflineAchievementsService {
     }
   }
 
-  // ☁️ Guardar logro online (o cachear si falla)
+  /// ☁️ Guardar logro online (o cachear si falla)
   Future<void> saveAchievementOnline(String genreName, Map<String, String> achievement) async {
     final uid = _getCurrentUserId();
     final achievementsRef = _firestore
@@ -54,7 +54,7 @@ class OfflineAchievementsService {
     }
   }
 
-  // 🔄 Sincronizar logros cacheados cuando vuelva la conexión
+  /// 🔄 Sincronizar logros cacheados cuando vuelva la conexión
   Future<void> syncCachedAchievements() async {
     final prefs = await SharedPreferences.getInstance();
     final cached = prefs.getStringList('cached_achievements') ?? [];
@@ -78,7 +78,7 @@ class OfflineAchievementsService {
     }
   }
 
-  // 🌐 Escucha cuando el usuario se reconecta
+  /// 🌐 Escucha cuando el usuario se reconecta
   void startListening() {
     Connectivity().onConnectivityChanged.listen((result) {
       if (result != ConnectivityResult.none) {

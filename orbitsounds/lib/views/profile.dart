@@ -5,12 +5,12 @@ import 'package:orbitsounds/components/backstage_card.dart';
 import 'package:orbitsounds/components/mini_song_reproductor.dart';
 import 'package:orbitsounds/components/navbar.dart';
 import 'package:heroicons/heroicons.dart';
-import 'package:orbitsounds/pages/edit_profile_screen.dart';
-import 'package:orbitsounds/pages/all_achievements_screen.dart'; // 👈 importa la nueva página
-import 'package:orbitsounds/pages/settings_page.dart';
+import 'package:orbitsounds/views/edit_profile_screen.dart';
+import 'package:orbitsounds/views/all_achievements_screen.dart'; // 👈 importa la nueva página
+import 'package:orbitsounds/views/settings_page.dart';
 import 'package:provider/provider.dart';
-import 'package:orbitsounds/services/playback_manager_service.dart';
-import 'package:orbitsounds/pages/music_detail_screen.dart';
+import 'package:orbitsounds/viewmodels/playback_manager_viewmodel.dart';
+import 'package:orbitsounds/views/music_detail_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'dart:convert';
@@ -394,7 +394,7 @@ class _ProfileBackstagePageState extends State<ProfileBackstagePage> {
 
   // 🎵 Mini reproductor sincronizado con TrackDetailScreen
   static Widget _buildPlayer(BuildContext context) {
-    final playback = context.watch<PlaybackManagerService>();
+    final playback = context.watch<PlaybackManagerViewModel>();
     final track = playback.currentTrack;
     final isPlaying = playback.isPlaying;
 

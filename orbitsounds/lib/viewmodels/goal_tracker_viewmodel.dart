@@ -5,10 +5,10 @@ import 'package:orbitsounds/models/listening_goal_model.dart';
 import 'package:orbitsounds/models/track_model.dart';
 import '../services/notification_service.dart';
 
-class GoalTrackerService {
-  static final GoalTrackerService _instance = GoalTrackerService._internal();
-  factory GoalTrackerService() => _instance;
-  GoalTrackerService._internal();
+class GoalTrackerViewModel {
+  static final GoalTrackerViewModel _instance = GoalTrackerViewModel._internal();
+  factory GoalTrackerViewModel() => _instance;
+  GoalTrackerViewModel._internal();
 
   final _firestore = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
