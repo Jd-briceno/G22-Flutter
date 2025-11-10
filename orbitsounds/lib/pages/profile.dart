@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:melodymuse/components/backstage_card.dart';
-import 'package:melodymuse/components/mini_song_reproductor.dart';
-import 'package:melodymuse/components/navbar.dart';
+import 'package:orbitsounds/components/backstage_card.dart';
+import 'package:orbitsounds/components/mini_song_reproductor.dart';
+import 'package:orbitsounds/components/navbar.dart';
 import 'package:heroicons/heroicons.dart';
-import 'package:melodymuse/pages/edit_profile_screen.dart';
-import 'package:melodymuse/pages/all_achievements_screen.dart'; // 👈 importa la nueva página
-import 'package:melodymuse/pages/settings_page.dart';
+import 'package:orbitsounds/pages/edit_profile_screen.dart';
+import 'package:orbitsounds/pages/all_achievements_screen.dart'; // 👈 importa la nueva página
+import 'package:orbitsounds/pages/settings_page.dart';
 import 'package:provider/provider.dart';
-import 'package:melodymuse/services/playback_manager_service.dart';
-import 'package:melodymuse/pages/music_detail_screen.dart';
+import 'package:orbitsounds/services/playback_manager_service.dart';
+import 'package:orbitsounds/pages/music_detail_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'dart:convert';
@@ -280,7 +280,7 @@ class _ProfileBackstagePageState extends State<ProfileBackstagePage> {
                         onTap: () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (_) => const SettingsPage()),
+                            MaterialPageRoute(builder: (_) => SettingsPage()),
                           );
                         },
                         child: const HeroIcon(
@@ -400,7 +400,7 @@ class _ProfileBackstagePageState extends State<ProfileBackstagePage> {
 
     // 🟡 Si no hay canción, mostrar placeholder con callbacks vacíos
     if (track == null) {
-      return const MiniSongReproductor(
+      return MiniSongReproductor(
         albumImage: "assets/images/Coldrain.jpg",
         songTitle: "No hay canción",
         artistName: "Desconocido",

@@ -3,15 +3,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:melodymuse/components/achivement_popup.dart';
-import 'package:melodymuse/pages/complete_profile_page.dart';
-import 'package:melodymuse/pages/home_screen.dart';
+import 'package:orbitsounds/components/achivement_popup.dart';
+import 'package:orbitsounds/pages/complete_profile_page.dart';
+import 'package:orbitsounds/pages/home_screen.dart';
 import 'package:heroicons/heroicons.dart';
 import 'package:country_picker/country_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:melodymuse/database/local_db.dart';
-import 'package:melodymuse/services/hive_service.dart';
+import 'package:orbitsounds/database/local_db.dart';
+import 'package:orbitsounds/services/hive_service.dart';
 
 class FinalDetailsPage extends StatefulWidget {
   final User user;

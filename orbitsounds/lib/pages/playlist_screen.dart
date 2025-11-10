@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
-import 'package:melodymuse/pages/music_detail_screen.dart';
+import 'package:orbitsounds/pages/music_detail_screen.dart';
 import '../models/track_model.dart';
 import '../services/spotify_service.dart';
 import '../components/track_tile.dart';
@@ -381,23 +381,19 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                                 waveController: _waveController,
                                 equalizerColor: equalizerColor,
                                 onTap: () {
-                                  if (isPlaying) {
-                                    // 🚀 Si ya está sonando, abrimos detalle
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) =>
-                                            TrackDetailScreen(tracks: tracks,
-                                            currentIndex: index,
-                                            genre: widget.genre,),
+                                  setState(() {
+                                    nowPlayingIndex = index;
+                                  });
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => TrackDetailScreen(
+                                        tracks: tracks,
+                                        currentIndex: index,
+                                        genre: widget.genre,
                                       ),
-                                    );
-                                  } else {
-                                    // 🎵 Si no, la marcamos como actual
-                                    setState(() {
-                                      nowPlayingIndex = index;
-                                    });
-                                  }
+                                    ),
+                                  );
                                 },
                               );
                             },
@@ -469,3 +465,4 @@ class _PlaylistScreenState extends State<PlaylistScreen>
     );
   }
 }
+

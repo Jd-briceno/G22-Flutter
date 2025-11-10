@@ -4,10 +4,10 @@ import '../models/track_model.dart';
 import 'goal_tracker_service.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 
-class PlaybackManagerService with ChangeNotifier {
-  static final PlaybackManagerService _instance = PlaybackManagerService._internal();
-  factory PlaybackManagerService() => _instance;
-  PlaybackManagerService._internal();
+class PlaybackManagerViewModel extends ChangeNotifier {
+  static final PlaybackManagerViewModel _instance = PlaybackManagerViewModel._internal();
+  factory PlaybackManagerViewModel() => _instance;
+  PlaybackManagerViewModel._internal();
 
   final GoalTrackerService _goalTracker = GoalTrackerService();
   final FirebaseAnalytics analytics = FirebaseAnalytics.instance;
@@ -220,3 +220,5 @@ class PlaybackManagerService with ChangeNotifier {
     notifyListeners();
   }
 }
+
+typedef PlaybackManagerService = PlaybackManagerViewModel;

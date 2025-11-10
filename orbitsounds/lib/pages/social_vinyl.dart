@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:melodymuse/components/navbar.dart';
+import 'package:orbitsounds/components/navbar.dart';
 import 'package:heroicons/heroicons.dart';
-import 'package:melodymuse/components/radar_widget.dart';
+import 'package:orbitsounds/components/radar_widget.dart';
 
 // Ejecuta la app
 void main() => runApp(const MyApp());
@@ -63,7 +63,7 @@ class _SocialVinylDemoState extends State<SocialVinylDemo> {
               child: Column(
                 children: [
                   const SizedBox(height: 20),
-                  const Navbar(
+                  Navbar(
                     username: "Jay Walker",
                     title: "Lightning Ninja",
                     profileImage: "assets/images/Jay.jpg",

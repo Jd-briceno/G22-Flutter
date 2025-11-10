@@ -2,15 +2,15 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
-import 'package:melodymuse/components/achivement_popup.dart';
-import 'package:melodymuse/pages/home_screen.dart';
-import 'package:melodymuse/pages/playlist_screen.dart';
+import 'package:orbitsounds/components/achivement_popup.dart';
+import 'package:orbitsounds/pages/home_screen.dart';
+import 'package:orbitsounds/pages/playlist_screen.dart';
 import 'package:heroicons/heroicons.dart';
 import 'dart:io'; // 👈 necesario para exit(0)
 import 'package:flutter/services.dart'; // 👈 necesario para SystemNavigator.pop()
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
-import 'package:melodymuse/services/offline_achievements_service.dart';
+import 'package:orbitsounds/services/offline_achievements_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
