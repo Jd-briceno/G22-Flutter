@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:orbitsounds/components/navbar.dart';
-import 'package:orbitsounds/pages/celestial_signal.dart';
+import 'package:orbitsounds/views/celestial_signal.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';

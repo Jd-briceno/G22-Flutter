@@ -9,6 +9,10 @@ class WeatherService {
   final String _baseUrl = "https://api.openweathermap.org/data/2.5/weather";
   final String _apiKey = dotenv.env['OPENWEATHER_API_KEY'] ?? '';
 
+  WeatherService() {
+    debugPrint("🌦️ WeatherService inicializado con API key: ${_apiKey.isNotEmpty ? '✅ Cargada' : '❌ Vacía'}");
+  }
+
   // Devuelve el ícono adecuado según la condición del clima
   HeroIcons getIconForCondition(String condition) {
     condition = condition.toLowerCase();
@@ -49,26 +53,33 @@ class WeatherService {
 
   // Consulta la API y devuelve un WeatherModel
   Future<WeatherModel> fetchWeather(double lat, double lon) async {
-    final url = Uri.parse("$_baseUrl?lat=$lat&lon=$lon&appid=$_apiKey&units=metric&lang=es");
-    final response = await http.get(url);
+    try {
+      final url = Uri.parse("$_baseUrl?lat=$lat&lon=$lon&appid=$_apiKey&units=metric&lang=es");
+      debugPrint("📡 Consultando clima: $url");
+      final response = await http.get(url);
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final condition = data['weather'][0]['main'] ?? 'Desconocido';
-      final description = data['weather'][0]['description'] ?? 'Desconocido';
-      final temperature = data['main']['temp']?.toDouble() ?? 0.0;
-      final icon = getIconForCondition(condition);
-      final color = getColorForCondition(condition);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final condition = data['weather'][0]['main'] ?? 'Desconocido';
+        final description = data['weather'][0]['description'] ?? 'Desconocido';
+        final temperature = data['main']['temp']?.toDouble() ?? 0.0;
+        final icon = getIconForCondition(condition);
+        final color = getColorForCondition(condition);
 
-      return WeatherModel(
-        condition: condition, // ✅ agregado correctamente
-        description: description,
-        temperature: temperature,
-        iconData: icon,
-        iconColor: color,
-      );
-    } else {
-      throw Exception("Error al obtener el clima: ${response.statusCode}");
+        return WeatherModel(
+          condition: condition, // ✅ agregado correctamente
+          description: description,
+          temperature: temperature,
+          iconData: icon,
+          iconColor: color,
+        );
+      } else {
+        debugPrint("❌ Error HTTP ${response.statusCode}: ${response.body}");
+        throw Exception("Error al obtener el clima: ${response.statusCode}");
+      }
+    } catch (e, st) {
+      debugPrint("🔥 Error al obtener el clima: $e\n$st");
+      rethrow;
     }
   }
 }

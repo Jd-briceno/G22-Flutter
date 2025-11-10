@@ -4,10 +4,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 
-class OfflineSyncService {
-  static final OfflineSyncService _instance = OfflineSyncService._internal();
-  factory OfflineSyncService() => _instance;
-  OfflineSyncService._internal();
+class OfflineSyncViewModel {
+  static final OfflineSyncViewModel _instance = OfflineSyncViewModel._internal();
+  factory OfflineSyncViewModel() => _instance;
+  OfflineSyncViewModel._internal();
 
   final _auth = FirebaseAuth.instance;
   final _analytics = FirebaseAnalytics.instance;

@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:orbitsounds/pages/final_detail_page.dart';
+import 'package:orbitsounds/views/final_detail_page.dart';
 
 class CompleteProfilePage extends StatefulWidget {
   final User user;

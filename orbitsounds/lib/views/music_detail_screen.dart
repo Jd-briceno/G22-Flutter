@@ -3,8 +3,8 @@ import 'package:heroicons/heroicons.dart';
 import 'package:feather_icons/feather_icons.dart';
 import 'package:provider/provider.dart';
 import '../models/track_model.dart';
-import '../services/goal_tracker_service.dart';
-import '../services/playback_manager_service.dart';
+import '../viewmodels/goal_tracker_viewmodel.dart';
+import '../viewmodels/playback_manager_viewmodel.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -24,17 +24,27 @@ class TrackDetailScreen extends StatefulWidget {
   State<TrackDetailScreen> createState() => _TrackDetailScreenState();
 }
 
+// ✅ Compatibilidad con llamadas antiguas desde playlist_screen.dart
+class MusicDetailScreen extends TrackDetailScreen {
+  const MusicDetailScreen({
+    super.key,
+    required super.tracks,
+    required super.currentIndex,
+    required super.genre,
+  });
+}
+
 class _TrackDetailScreenState extends State<TrackDetailScreen>
     with WidgetsBindingObserver {
-  final GoalTrackerService _goalTracker = GoalTrackerService();
-  late PlaybackManagerService _player;
+  final GoalTrackerViewModel _goalTracker = GoalTrackerViewModel();
+  late PlaybackManagerViewModel _player;
   final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _player = PlaybackManagerService();
+    _player = PlaybackManagerViewModel();
 
     // Cargar playlist y reproducir inmediatamente si es nueva
     if (_player.playlist.isEmpty ||
@@ -128,7 +138,7 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
 
     return ChangeNotifierProvider.value(
       value: _player,
-      child: Consumer<PlaybackManagerService>(
+      child: Consumer<PlaybackManagerViewModel>(
         builder: (context, player, _) {
           final track = player.currentTrack;
           if (track == null) {
@@ -304,7 +314,7 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
   }
 
   Widget _buildMusicControls(
-    PlaybackManagerService player,
+    PlaybackManagerViewModel player,
     Track track,
     Duration duration,
     Duration position,

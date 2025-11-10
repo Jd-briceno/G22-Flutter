@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:melodymuse/models/openai_model.dart';
+import 'package:orbitsounds/models/openai_model.dart';
 
 
 class OpenAIService {

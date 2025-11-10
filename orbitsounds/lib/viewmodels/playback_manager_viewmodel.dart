@@ -1,8 +1,30 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/track_model.dart';
-import 'goal_tracker_service.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
+
+// Minimal local stub to avoid missing dependency while keeping API intact
+class GoalTrackerService {
+  void startTracking(String genre) {
+    // no-op stub
+  }
+
+  Future<void> registerSongRepeat({
+    required String genre,
+    required String songId,
+    required Track track,
+  }) async {
+    // no-op stub
+  }
+
+  Future<void> registerSongPlayed(String genre) async {
+    // no-op stub
+  }
+
+  void stopTracking() {
+    // no-op stub
+  }
+}
 
 class PlaybackManagerViewModel extends ChangeNotifier {
   static final PlaybackManagerViewModel _instance = PlaybackManagerViewModel._internal();

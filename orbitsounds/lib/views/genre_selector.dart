@@ -3,14 +3,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:orbitsounds/components/achivement_popup.dart';
-import 'package:orbitsounds/pages/home_screen.dart';
-import 'package:orbitsounds/pages/playlist_screen.dart';
+import 'package:orbitsounds/views/home_screen.dart';
+import 'package:orbitsounds/views/playlist_screen.dart';
 import 'package:heroicons/heroicons.dart';
 import 'dart:io'; // 👈 necesario para exit(0)
 import 'package:flutter/services.dart'; // 👈 necesario para SystemNavigator.pop()
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
-import 'package:orbitsounds/services/offline_achievements_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -670,6 +669,48 @@ class PlanetWidget extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Minimal offline achievements helper (inlined to avoid missing import)
+class OfflineAchievementsService {
+  /// Save achievement online under: users/{uid}/achievements
+  Future<void> saveAchievementOnline(String genre, Map<String, String> achievement) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('achievements')
+          .add({
+        'target': genre,
+        'title': achievement['title'],
+        'icon': achievement['icon'],
+        'unlockedAt': DateTime.now().toIso8601String(),
+        'source': 'genre_selector',
+      });
+    } catch (e) {
+      // Best-effort: if online save fails, cache locally so it can be synced later
+      await cacheAchievement(genre, achievement);
+    }
+  }
+
+  /// Cache achievement locally in SharedPreferences under key 'cached_achievements'
+  Future<void> cacheAchievement(String genre, Map<String, String> achievement) async {
+    final prefs = await SharedPreferences.getInstance();
+    final cached = prefs.getStringList('cached_achievements') ?? [];
+    final record = [
+      genre,
+      achievement['title'] ?? '',
+      achievement['icon'] ?? '',
+      DateTime.now().toIso8601String(),
+    ].join('|');
+    // avoid duplicates for same genre
+    if (!cached.any((e) => e.startsWith("$genre|"))) {
+      cached.add(record);
+      await prefs.setStringList('cached_achievements', cached);
+    }
   }
 }
 

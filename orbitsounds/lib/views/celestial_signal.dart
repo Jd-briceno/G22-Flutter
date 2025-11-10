@@ -2,7 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:orbitsounds/components/navbar.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:orbitsounds/pages/genre_selector.dart';
+import 'package:orbitsounds/views/genre_selector.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';

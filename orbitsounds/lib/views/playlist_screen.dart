@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
-import 'package:orbitsounds/pages/music_detail_screen.dart';
+import 'package:orbitsounds/views/music_detail_screen.dart';
 import '../models/track_model.dart';
 import '../services/spotify_service.dart';
 import '../components/track_tile.dart';
@@ -199,14 +199,10 @@ class _PlaylistScreenState extends State<PlaylistScreen>
 
 
   Future<void> _loadAIDescription() async {
-    try {
-      _fallbackDescriptions[widget.genre] ?? "Enjoy the best of ${widget.genre} 🎶.";
-    } catch (e) {
-      setState(() {
-        aiDescription =
-            _fallbackDescriptions[widget.genre] ?? "Enjoy the best of ${widget.genre} 🎶.";
-      });
-    }
+    final fallback = _fallbackDescriptions[widget.genre] ?? "Enjoy the best of ${widget.genre} 🎶.";
+    setState(() {
+      aiDescription = fallback;
+    });
   }
 
   String _formatDuration(Duration d) {
@@ -316,7 +312,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                           ),
                           SizedBox(height: widget.genre == "Pop" ? 2 : 12),
                           Text(
-                            _fallbackDescriptions[widget.genre] ?? "Enjoy the best of ${widget.genre} 🎶.",
+                            aiDescription ?? (_fallbackDescriptions[widget.genre] ?? "Enjoy the best of ${widget.genre} 🎶."),
                             style: const TextStyle(
                               fontSize: 16,
                               color: Colors.white70,
@@ -387,7 +383,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (_) => TrackDetailScreen(
+                                      builder: (_) => MusicDetailScreen(
                                         tracks: tracks,
                                         currentIndex: index,
                                         genre: widget.genre,

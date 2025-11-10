@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:orbitsounds/components/vinyl_cover.dart';
-import 'package:orbitsounds/pages/ares_recommendations_screen.dart';
+import 'package:orbitsounds/views/ares_recommendations_screen.dart';
 import '../components/search_bar.dart';
 import '../components/navbar.dart';
 import '../models/track_model.dart';
