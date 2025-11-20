@@ -7,19 +7,18 @@ import '../components/track_tile.dart';
 import 'package:heroicons/heroicons.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 
-
 class PlaylistScreen extends StatefulWidget {
   final String genre;
   final List<Color> colors;
   final String fontFamily;
-  final DateTime? startTime; // 👈 NUEVO
+  final DateTime? startTime;
 
   const PlaylistScreen({
     super.key,
     required this.genre,
     required this.colors,
     required this.fontFamily,
-    this.startTime, // 👈 OPCIONAL
+    this.startTime,
   });
 
   @override
@@ -31,15 +30,14 @@ class _PlaylistScreenState extends State<PlaylistScreen>
   int? nowPlayingIndex;
   late AnimationController _waveController;
   final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
-
   final SpotifyService _spotifyService = SpotifyService();
 
   List<Track> tracks = [];
   bool isLoading = true;
   Duration totalDuration = Duration.zero;
-
   String? aiDescription;
-  bool isLiked = false; // ❤️ estado del botón Like
+  bool isLiked = false;
+  int? userRating; // ⭐️ Guarda la calificación del usuario
 
   final Map<String, String> _playlistNames = {
     "Pop": "Pop Vibes",
@@ -52,9 +50,9 @@ class _PlaylistScreenState extends State<PlaylistScreen>
     "J-Rock": "Japanese Rock Power",
     "Punk": "Rebel Riffs",
     "Medieval": "Ancient Echoes",
-    "Anisong":"TO BE HERO X",
-    "Rap":"Godzilla",
-    "Musical":"Legendary"
+    "Anisong": "TO BE HERO X",
+    "Rap": "Godzilla",
+    "Musical": "Legendary"
   };
 
   final Map<String, String> _playlistCovers = {
@@ -84,9 +82,9 @@ class _PlaylistScreenState extends State<PlaylistScreen>
     "Heavy Metal": Colors.grey,
     "EDM": Colors.blueAccent,
     "Medieval": Colors.amber,
-    "Rap":Colors.green,
-    "Anisong":Colors.lightBlueAccent,
-    "Musical":Colors.amber,
+    "Rap": Colors.green,
+    "Anisong": Colors.lightBlueAccent,
+    "Musical": Colors.amber,
   };
 
   final Map<String, String> _fallbackDescriptions = {
@@ -100,8 +98,10 @@ class _PlaylistScreenState extends State<PlaylistScreen>
     "J-Rock": "Dynamic sounds from Japan’s rock scene with fiery intensity.",
     "Punk": "Fast, rebellious riffs with a raw and unapologetic spirit.",
     "Medieval": "Echoes of ancient halls, lutes, and chants from another era.",
-    "Rap":"Hard-hitting beats, lyrical flow, and street-born stories with raw attitude.",
-    "Anisong":"Epic melodies and emotional power, straight from anime worlds of heroes and dreams."
+    "Rap":
+        "Hard-hitting beats, lyrical flow, and street-born stories with raw attitude.",
+    "Anisong":
+        "Epic melodies and emotional power, straight from anime worlds of heroes and dreams."
   };
 
   @override
@@ -124,32 +124,18 @@ class _PlaylistScreenState extends State<PlaylistScreen>
       print("📀 Playlists obtenidas desde Spotify: ${playlists.length}");
 
       if (playlists.isEmpty || playlists.first == null) {
-        print("⚠️ No se encontraron playlists válidas para '${widget.genre}'");
         throw Exception("Playlist vacía o nula");
       }
 
       final firstPlaylist = playlists.first;
       final playlistId = firstPlaylist['id'] ?? firstPlaylist['playlistId'];
-
-      if (playlistId == null) {
-        print("🚫 Playlist no tiene ID: $firstPlaylist");
-        throw Exception("Playlist sin ID válida");
-      }
-
-      print("🎵 Usando playlist ID: $playlistId");
       final fetchedTracks = await _spotifyService.getPlaylistTracks(playlistId);
-      print("🎶 Canciones obtenidas: ${fetchedTracks.length}");
 
-      // 💾 Guarda localmente los tracks en Hive
       final box = await Hive.openBox(boxName);
       await box.put('tracks', fetchedTracks.map((t) => t.toMap()).toList());
-      print("✅ Playlist '${widget.genre}' cacheada localmente (${fetchedTracks.length} tracks)");
 
-      // 🕒 Calcula duración total
-      final durationMs = fetchedTracks.fold<int>(
-        0,
-        (sum, track) => sum + track.durationMs,
-      );
+      final durationMs =
+          fetchedTracks.fold<int>(0, (sum, track) => sum + track.durationMs);
 
       setState(() {
         tracks = fetchedTracks;
@@ -157,52 +143,74 @@ class _PlaylistScreenState extends State<PlaylistScreen>
         isLoading = false;
       });
 
-      // 📈 Métrica de carga
       if (widget.startTime != null) {
-        final endTime = DateTime.now();
-        final loadTime = endTime.difference(widget.startTime!).inMilliseconds;
-        final withinTarget = loadTime <= 8000;
-
+        final loadTime =
+            DateTime.now().difference(widget.startTime!).inMilliseconds;
         await _analytics.logEvent(
           name: 'playlist_loaded',
           parameters: {
             'genre': widget.genre,
             'load_time_ms': loadTime,
-            'within_target': withinTarget ? 'true' : 'false',
-            'timestamp': widget.startTime!.toIso8601String(),
           },
         );
       }
-
     } catch (e, st) {
-      print("⚠️ No se pudo cargar desde Spotify, usando caché local... ($e)");
-      print(st);
+      print("⚠️ Error cargando playlist: $e\n$st");
       final box = await Hive.openBox(boxName);
       final cached = box.get('tracks', defaultValue: []) as List<dynamic>;
 
       if (cached.isNotEmpty) {
         setState(() {
-          tracks = cached.map((m) => Track.fromMap(Map<String, dynamic>.from(m))).toList();
+          tracks = cached
+              .map((m) => Track.fromMap(Map<String, dynamic>.from(m)))
+              .toList();
           totalDuration = Duration(
             milliseconds: tracks.fold(0, (sum, t) => sum + t.durationMs),
           );
           isLoading = false;
         });
-        print("📦 Playlist '${widget.genre}' cargada desde caché (${tracks.length} tracks)");
       } else {
         setState(() => isLoading = false);
-        print("🚫 No hay datos en caché para '${widget.genre}'");
       }
     }
   }
 
-
-
   Future<void> _loadAIDescription() async {
-    final fallback = _fallbackDescriptions[widget.genre] ?? "Enjoy the best of ${widget.genre} 🎶.";
-    setState(() {
-      aiDescription = fallback;
-    });
+    try {
+      _fallbackDescriptions[widget.genre] ?? "Enjoy the best of ${widget.genre} 🎶.";
+    } catch (e) {
+      setState(() {
+        aiDescription =
+            _fallbackDescriptions[widget.genre] ?? "Enjoy the best of ${widget.genre} 🎶.";
+      });
+    }
+  }
+
+  Future<void> _sendFeedback(int rating) async {
+    try {
+      await _analytics.logEvent(
+        name: 'playlist_feedback',
+        parameters: {
+          'genre': widget.genre,
+          'user_rating': rating,
+          'timestamp': DateTime.now().toIso8601String(),
+        },
+      );
+
+      setState(() => userRating = rating);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gracias por tu feedback! ⭐ ($rating/5)'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+
+      print("📊 Feedback registrado: $rating para ${widget.genre}");
+    } catch (e) {
+      print("⚠️ Error enviando feedback: $e");
+    }
   }
 
   String _formatDuration(Duration d) {
@@ -247,7 +255,6 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                 child: _buildCoverImage(coverImage),
               ),
             ),
-
           Positioned(
             top: 40,
             left: 16,
@@ -265,19 +272,16 @@ class _PlaylistScreenState extends State<PlaylistScreen>
               },
             ),
           ),
-
           if (isLoading)
             const Center(
               child: CircularProgressIndicator(color: Colors.greenAccent),
             ),
-
           if (!isLoading && tracks.isNotEmpty) ...[
             Positioned(
               top: 260,
               right: 24,
               child: _buildPlayButton(),
             ),
-
             Positioned.fill(
               top: 310,
               child: SingleChildScrollView(
@@ -310,15 +314,47 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                               color: Colors.white,
                             ),
                           ),
-                          SizedBox(height: widget.genre == "Pop" ? 2 : 12),
+                          const SizedBox(height: 12),
                           Text(
-                            aiDescription ?? (_fallbackDescriptions[widget.genre] ?? "Enjoy the best of ${widget.genre} 🎶."),
+                            _fallbackDescriptions[widget.genre] ??
+                                "Enjoy the best of ${widget.genre} 🎶.",
                             style: const TextStyle(
                               fontSize: 16,
                               color: Colors.white70,
                             ),
                           ),
                           const SizedBox(height: 12),
+
+                          // ⭐ FEEDBACK DE USUARIO
+                          Text(
+                            "¿Qué tan bien refleja esta playlist tu estado de ánimo?",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: List.generate(5, (index) {
+                              final rating = index + 1;
+                              return IconButton(
+                                icon: Icon(
+                                  Icons.star,
+                                  color: (userRating != null &&
+                                          userRating! >= rating)
+                                      ? Colors.amber
+                                      : Colors.white38,
+                                  size: 32,
+                                ),
+                                onPressed: () async {
+                                  await _sendFeedback(rating);
+                                },
+                              );
+                            }),
+                          ),
+                          const SizedBox(height: 12),
+
                           Text(
                             "Total Duration: ${_formatDuration(totalDuration)}",
                             style: const TextStyle(
@@ -329,7 +365,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                           ),
                           const SizedBox(height: 12),
 
-                          /// 🎛️ Action Buttons con HeroIcons
+                          // 🎛️ Action Buttons
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -362,7 +398,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                           ),
                           const SizedBox(height: 2),
 
-                          /// 🎵 LISTA DE CANCIONES
+                          // 🎵 LISTA DE CANCIONES
                           ListView.builder(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
@@ -370,26 +406,28 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                             itemBuilder: (context, index) {
                               final track = tracks[index];
                               final isPlaying = nowPlayingIndex == index;
-
                               return TrackTile(
                                 track: track,
                                 isPlaying: isPlaying,
                                 waveController: _waveController,
                                 equalizerColor: equalizerColor,
                                 onTap: () {
-                                  setState(() {
-                                    nowPlayingIndex = index;
-                                  });
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => MusicDetailScreen(
-                                        tracks: tracks,
-                                        currentIndex: index,
-                                        genre: widget.genre,
+                                  if (isPlaying) {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => TrackDetailScreen(
+                                          tracks: tracks,
+                                          currentIndex: index,
+                                          genre: widget.genre,
+                                        ),
                                       ),
-                                    ),
-                                  );
+                                    );
+                                  } else {
+                                    setState(() {
+                                      nowPlayingIndex = index;
+                                    });
+                                  }
                                 },
                               );
                             },
@@ -407,12 +445,9 @@ class _PlaylistScreenState extends State<PlaylistScreen>
     );
   }
 
-  /// ▶️ Play Button (HeroIcon)
   Widget _buildPlayButton() {
     return GestureDetector(
-      onTap: () {
-        // TODO: Play all tracks
-      },
+      onTap: () {},
       child: const HeroIcon(
         HeroIcons.playCircle,
         style: HeroIconStyle.outline,
@@ -422,7 +457,6 @@ class _PlaylistScreenState extends State<PlaylistScreen>
     );
   }
 
-  /// 🎛️ Generic Action Button
   Widget _actionButton(Widget icon, String tooltip) {
     return Container(
       width: 50,
@@ -430,15 +464,12 @@ class _PlaylistScreenState extends State<PlaylistScreen>
       margin: const EdgeInsets.symmetric(horizontal: 10),
       child: InkWell(
         borderRadius: BorderRadius.circular(22),
-        onTap: () {
-          // TODO: acción del botón
-        },
+        onTap: () {},
         child: Center(child: icon),
       ),
     );
   }
 
-  /// ❤️ Like Button con toggle outline/solid
   Widget _likeButton() {
     return Container(
       width: 50,
@@ -461,4 +492,3 @@ class _PlaylistScreenState extends State<PlaylistScreen>
     );
   }
 }
-

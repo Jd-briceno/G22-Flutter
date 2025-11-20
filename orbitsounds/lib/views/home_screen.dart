@@ -4,25 +4,25 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:orbitsounds/views/mood_playlist_screen.dart';
+import 'package:melodymuse/views/mood_playlist_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:heroicons/heroicons.dart';
-import 'package:google_fonts/google_fonts.dart';
 
-import 'package:orbitsounds/components/navbar.dart';
-import 'package:orbitsounds/components/song_reproductor.dart';
-import 'package:orbitsounds/components/shortcuts_container.dart';
-import 'package:orbitsounds/views/captain-longbook.dart';
-import 'package:orbitsounds/views/library_screen.dart';
-import 'package:orbitsounds/views/profile.dart';
-import 'package:orbitsounds/views/social_vinyl.dart';
-import 'package:orbitsounds/views/soul_sync_terminal.dart';
-import 'package:orbitsounds/views/music_detail_screen.dart';
+import 'package:melodymuse/components/navbar.dart';
+import 'package:melodymuse/components/song_reproductor.dart';
+import 'package:melodymuse/components/shortcuts_container.dart';
+import 'package:melodymuse/views/captain-longbook.dart';
+import 'package:melodymuse/views/library_screen.dart';
+import 'package:melodymuse/views/profile.dart';
+import 'package:melodymuse/views/social_vinyl.dart';
+import 'package:melodymuse/views/soul_sync_terminal.dart';
+import 'package:melodymuse/views/music_detail_screen.dart';
 
 import '../services/weather_service.dart';
 import '../models/weather_model.dart';
 import '../viewmodels/playback_manager_viewmodel.dart';
 import '../models/track_model.dart';
+import '../models/weather_model.dart';
 
 
 
@@ -308,7 +308,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     : "assets/images/default_profile.jpg",
                 weather: _weather, // 🔹 Nuevo parámetro para mostrar el clima
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 0),
 
               // 🚀 Astronauta flotante
               Expanded(
@@ -361,14 +361,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
               const SizedBox(height: 8),
               _buildShortcuts(context),
-              const SizedBox(height: 20),
+              const SizedBox(height: 50),
             ],
           ),
 
           // 🎤 BOTÓN FLOTANTE (Modo Emocional)
           Positioned(
             right: 20,
-            bottom: 215, // 🔹 Justo encima del SongReproductor
+            bottom: 250, // 🔹 Justo encima del SongReproductor
             child: FloatingActionButton(
               backgroundColor: Colors.deepPurpleAccent,
               elevation: 8,

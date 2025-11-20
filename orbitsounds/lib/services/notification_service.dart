@@ -11,24 +11,29 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _notificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
+  /// Getter público
+  FlutterLocalNotificationsPlugin get flutterLocalNotificationsPlugin =>
+      _notificationsPlugin;
+
+  /// 🔹 Bandera global: indica si el usuario abrió la app desde una notificación
+  static bool cameFromReminder = false;
+
   /// 🔹 Inicialización del sistema de notificaciones
   Future<void> init() async {
     final platform = Platform.operatingSystem;
     print('🔧 NotificationService.init() en $platform');
 
-    // Evita que se ejecute si Flutter no está listo
     if (!Platform.isAndroid && !Platform.isIOS) {
-      print('ℹ️ Plataforma $platform sin soporte para notificaciones locales, se omite init.');
+      print(
+          'ℹ️ Plataforma $platform sin soporte para notificaciones locales, se omite init.');
       return;
     }
 
-    // ⚙️ Configuración Android
     const AndroidInitializationSettings androidInit =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
-    // 🍏 Configuración iOS
     const DarwinInitializationSettings iosInit = DarwinInitializationSettings(
-      requestAlertPermission: false, // 👈 importante: pedimos manualmente después
+      requestAlertPermission: false,
       requestBadgePermission: false,
       requestSoundPermission: false,
     );
@@ -37,14 +42,23 @@ class NotificationService {
         InitializationSettings(android: androidInit, iOS: iosInit);
 
     try {
-      await _notificationsPlugin.initialize(initSettings);
+      await _notificationsPlugin.initialize(
+        initSettings,
+        onDidReceiveNotificationResponse: (NotificationResponse response) {
+          print('📲 Notificación tocada: ${response.payload}');
+          if (response.payload == 'longbook_reminder') {
+            cameFromReminder = true;
+            print('🟢 cameFromReminder = true');
+          }
+        },
+      );
       print('✅ FlutterLocalNotificationsPlugin.initialize completado.');
     } catch (e, st) {
       print('❌ Error al inicializar FlutterLocalNotificationsPlugin: $e\n$st');
       rethrow;
     }
 
-    // 🟢 Solicitar permisos después (de forma segura)
+    // Solicitar permisos
     Future.delayed(const Duration(seconds: 1), () async {
       try {
         if (Platform.isAndroid) {
@@ -64,7 +78,8 @@ class NotificationService {
                 sound: true,
               ) ??
               false;
-          print('🔔 Permisos de notificaciones solicitados en iOS. concedidos=$granted');
+          print(
+              '🔔 Permisos de notificaciones solicitados en iOS. concedidos=$granted');
         }
       } catch (e, st) {
         print('❌ Error solicitando permisos de notificaciones: $e\n$st');
@@ -72,15 +87,14 @@ class NotificationService {
     });
   }
 
-  /// 🔸 Notificación genérica (para alertas, recordatorios, etc.)
+  /// 🔸 Notificación genérica
   Future<void> showNotification({
     required String title,
     required String body,
     String? channelId,
     String? channelName,
   }) async {
-    final AndroidNotificationDetails androidDetails =
-        AndroidNotificationDetails(
+    final androidDetails = AndroidNotificationDetails(
       channelId ?? 'general_channel',
       channelName ?? 'General Notifications',
       channelDescription: 'Notificaciones generales de la app 🎵',
@@ -92,30 +106,28 @@ class NotificationService {
       icon: '@mipmap/ic_launcher',
     );
 
-    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+    const iosDetails = DarwinNotificationDetails(
       presentSound: true,
       presentAlert: true,
       presentBadge: true,
     );
 
-    final NotificationDetails details =
-        NotificationDetails(android: androidDetails, iOS: iosDetails);
+    final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
 
     await _notificationsPlugin.show(
-      DateTime.now().millisecondsSinceEpoch ~/ 1000, // ID único
+      DateTime.now().millisecondsSinceEpoch ~/ 1000,
       title,
       body,
       details,
     );
   }
 
-  /// 🏆 Notificación específica para logros (Achievements)
+  /// 🏆 Notificación de logros
   Future<void> showAchievementNotification({
     required String title,
     required String body,
   }) async {
-    final AndroidNotificationDetails androidDetails =
-        const AndroidNotificationDetails(
+    const androidDetails = AndroidNotificationDetails(
       'achievements_channel',
       'Achievements',
       channelDescription: 'Notificaciones de logros musicales 🎶',
@@ -127,14 +139,13 @@ class NotificationService {
       icon: '@mipmap/ic_launcher',
     );
 
-    const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+    const iosDetails = DarwinNotificationDetails(
       presentSound: true,
       presentAlert: true,
       presentBadge: true,
     );
 
-    final NotificationDetails details =
-        NotificationDetails(android: androidDetails, iOS: iosDetails);
+    final details = NotificationDetails(android: androidDetails, iOS: iosDetails);
 
     await _notificationsPlugin.show(
       DateTime.now().millisecondsSinceEpoch ~/ 1000,

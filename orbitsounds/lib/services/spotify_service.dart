@@ -5,22 +5,33 @@ import 'package:http/http.dart' as http;
 import '../models/track_model.dart';
 import '../services/hive_service.dart';
 import '../cache/lru_cache.dart';
+import 'deezer_service.dart';
+
+/// 🔥 Agregado: función para enriquecer un track con preview de Deezer
+Future<Track> enrichTrackWithDeezerPreview(Track track) async {
+  try {
+    final deezerService = DeezerPreviewService();
+    final previewUrl = await deezerService.fetchPreviewUrl(track.title, track.artist);
+    print("🎧 Deezer Preview for ${track.title}: $previewUrl");
+    return track.copyWith(previewUrl: previewUrl);
+  } catch (e) {
+    print("❌ Error fetching preview for ${track.title}: $e");
+    return track;
+  }
+}
 
 class SpotifyService {
   final String _clientId = dotenv.env['SPOTIFY_CLIENT_ID'] ?? '';
   final String _clientSecret = dotenv.env['SPOTIFY_CLIENT_SECRET'] ?? '';
 
-  /// 🧠 LRU cache (mantiene en memoria las últimas 10 playlists)
   final LRUCache<String, List<Track>> _memoryCache = LRUCache(10);
 
-  /// 🌎 Lista de mercados (random para variar resultados)
   final List<String> _markets = [
     "US","GB","DE","JP","KR","MX","BR","FR","ES","IT",
     "CA","AR","AU","CL","CO","NL","SE","NO","FI","DK",
     "PL","PT","IE","NZ","TR","IL","IN","ID","TH","SG","RU"
   ];
 
-  /// 🎯 Queries especiales por género
   final Map<String, List<String>> _specialQueries = {
     "j-rock": ["J-Rock", "Japanese Rock", "邦楽ロック"],
     "k-pop": ["K-Pop", "케이팝", "Korean Pop"],
@@ -29,7 +40,6 @@ class SpotifyService {
     "musical": ["Hamilton", "Epic", "Musical"],
   };
 
-  /// 🔑 Obtener token de acceso de Spotify
   Future<String?> getAccessToken() async {
     final credentials = base64Encode(utf8.encode("$_clientId:$_clientSecret"));
 
@@ -50,7 +60,6 @@ class SpotifyService {
     }
   }
 
-  /// 🔍 Obtener playlists de un género (sin cache, directo de API)
   Future<List<dynamic>> getGenrePlaylists(String genre) async {
     final token = await getAccessToken();
     if (token == null) return [];
@@ -72,12 +81,10 @@ class SpotifyService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final items = (data["playlists"]?["items"] ?? []) as List<dynamic>;
-        final validItems = items
-            .where((item) => item != null && item is Map && item["id"] != null)
-            .toList();
 
-        playlists.addAll(validItems);
-
+        playlists.addAll(
+          items.where((item) => item != null && item["id"] != null),
+        );
       } else {
         print("❌ Error searching playlists for $query: ${response.body}");
       }
@@ -89,15 +96,13 @@ class SpotifyService {
     return playlists;
   }
 
-  /// 🎶 Obtener canciones dentro de una playlist con caché híbrida
+  /// 🎶 Obtener canciones + añadir preview desde Deezer
   Future<List<Track>> getPlaylistTracks(String playlistId, {String market = "US"}) async {
-    // 1️⃣ Revisar caché en memoria
     if (_memoryCache.contains(playlistId)) {
       print("⚡ Cargado desde LRU cache: $playlistId");
       return _memoryCache.get(playlistId)!;
     }
 
-    // 2️⃣ Revisar caché en disco (Hive)
     final diskData = HiveService.getTracks(playlistId);
     if (diskData != null) {
       final cachedTracks = diskData.map((e) => Track.fromJson(e)).toList();
@@ -106,7 +111,6 @@ class SpotifyService {
       return cachedTracks;
     }
 
-    // 3️⃣ Si no hay en caché, ir a la red (Spotify API)
     final token = await getAccessToken();
     if (token == null) return [];
 
@@ -115,33 +119,42 @@ class SpotifyService {
       headers: {"Authorization": "Bearer $token"},
     );
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final items = data["items"] as List<dynamic>? ?? [];
-
-      final tracks = items
-          .map((item) => item["track"])
-          .where((track) => track != null && track["id"] != null)
-          .map((track) => Track.fromSpotify(track))
-          .where((track) => track.title.isNotEmpty)
-          .toList();
-
-      tracks.shuffle(Random());
-      final limited = tracks.take(15).toList();
-
-      // 🧠 Guardar en memoria y disco
-      _memoryCache.put(playlistId, limited);
-      await HiveService.saveTracks(playlistId, limited.map((t) => t.toJson()).toList());
-      print("🌐 Descargado de Spotify y cacheado: $playlistId");
-
-      return limited;
-    } else {
+    if (response.statusCode != 200) {
       print("❌ Error fetching tracks: ${response.body}");
       return [];
     }
+
+    final data = jsonDecode(response.body);
+    final items = data["items"] as List<dynamic>? ?? [];
+
+    final tracks = items
+        .map((item) => item["track"])
+        .where((track) =>
+            track != null &&
+            track["id"] != null &&
+            track["name"] != null &&
+            track["uri"] != null)
+        .map((track) => Track.fromSpotify(track))
+        .where((track) => track.title.isNotEmpty)
+        .toList();
+
+    tracks.shuffle(Random());
+
+    /// ⬇️ **AQUÍ ES DONDE SE AGREGA EL PREVIEW DE DEEZER**
+    final enrichedTracks = await Future.wait(
+      tracks.map((t) => enrichTrackWithDeezerPreview(t)),
+    );
+
+    final limited = enrichedTracks.take(15).toList();
+
+    _memoryCache.put(playlistId, limited);
+    await HiveService.saveTracks(playlistId, limited.map((t) => t.toJson()).toList());
+
+    print("🌐 Descargado de Spotify + previews de Deezer: $playlistId");
+
+    return limited;
   }
 
-  /// 🔍 Buscar canciones directamente (sin cache, uso puntual)
   Future<List<Track>> searchTracks(String query, {String market = "US"}) async {
     final token = await getAccessToken();
     if (token == null) return [];
@@ -151,21 +164,24 @@ class SpotifyService {
       headers: {"Authorization": "Bearer $token"},
     );
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final items = (data["tracks"]?["items"] ?? []) as List<dynamic>;
-
-      return items
-          .where((track) => track != null && track["id"] != null)
-          .map((track) => Track.fromSpotify(track))
-          .toList();
-    } else {
+    if (response.statusCode != 200) {
       print("❌ Error searching tracks: ${response.body}");
       return [];
     }
+
+    final data = jsonDecode(response.body);
+    final items = (data["tracks"]?["items"] ?? []) as List<dynamic>;
+
+    final results = items
+        .map((track) => Track.fromSpotify(track))
+        .toList();
+
+    /// ⬇️ También enriquecemos resultados de búsqueda
+    return await Future.wait(
+      results.map((t) => enrichTrackWithDeezerPreview(t)),
+    );
   }
 
-  /// 🧹 Limpieza manual (LRU + Hive)
   void clearCache() {
     _memoryCache.clear();
     HiveService.clearTrackCache();

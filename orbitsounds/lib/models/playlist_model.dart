@@ -26,6 +26,7 @@ class Playlist {
               "durationMs": t.durationMs,
               "albumArt": t.albumArt,
               "previewUrl": t.previewUrl,
+              "isLiked": t.isLiked,       
             }).toList(),
       };
 
@@ -43,6 +44,7 @@ class Playlist {
                 durationMs: t["durationMs"] ?? 0,
                 albumArt: t["albumArt"] ?? "",
                 previewUrl: t["previewUrl"],
+                isLiked: t["isLiked"] ?? false,
               ))
           .toList(),
     );

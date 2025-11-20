@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:orbitsounds/components/navbar.dart';
-import 'package:orbitsounds/views/celestial_signal.dart';
+import 'package:melodymuse/components/navbar.dart';
+import 'package:melodymuse/views/celestial_signal.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_analytics/observer.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
@@ -65,6 +66,7 @@ class _SoulSyncTerminal extends State<SoulSyncTerminal>
   late AnimationController _controller;
   late Animation<double> _thumbAnimation;
   final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
+  late DateTime _entryTime;
 
   static const railTop = 21.2913;
   static const railHeight = 571.797;
@@ -117,7 +119,7 @@ Future<void> _syncCachedEmotions() async {
 }
 
   //Usuario actual
-  String _getCurrentUserId() {
+  String? _getCurrentUserId() {
     final user = FirebaseAuth.instance.currentUser;
     return user?.uid ?? "guest";
   }
@@ -130,7 +132,7 @@ Future<void> _syncCachedEmotions() async {
         "emotion": emotion,
         "source": source,
         "timestamp": FieldValue.serverTimestamp(),
-        "userId": _getCurrentUserId(), // aquí reemplaza si usas Firebase Auth
+        "userId": "guest", // aquí reemplaza si usas Firebase Auth
       });
 
       print("✅ Emoción guardada en Firestore: $emotion ($source)");
@@ -262,7 +264,7 @@ Future<void> _syncCachedEmotions() async {
 
       // 🌐 2️⃣ Si hay conexión real, sube en background (sin bloquear)
       if (await _isOnline()) {
-        unawaited(_uploadSessionToFirestore(uid, sessionId));
+        unawaited(_uploadSessionToFirestore(uid!, sessionId));
       }
 
       // 🔹 3️⃣ Analytics (también solo si hay red)
@@ -270,9 +272,9 @@ Future<void> _syncCachedEmotions() async {
         if (await _isOnline()) {
           await FirebaseAnalytics.instance.logEvent(
             name: 'session_created',
-            parameters: <String, Object>{
+            parameters: {
               'session_id': sessionId,
-              'user_id': uid,
+              'user_id': ?uid,
               'emotion_count': _selectedEmotions.length,
               'emotions': _selectedEmotions.join(', '),
             },
@@ -346,7 +348,7 @@ Future<void> _trySyncSessionOnline(String uid, String sessionId, List<String> em
     // 🔹 Registrar evento en Analytics
     await FirebaseAnalytics.instance.logEvent(
       name: 'session_created',
-      parameters: <String, Object>{
+      parameters: {
         'session_id': sessionId,
         'user_id': uid,
         'emotion_count': emotions.length,
@@ -366,20 +368,23 @@ Future<void> _trySyncSessionOnline(String uid, String sessionId, List<String> em
   // Manejo centralizado: añade a historial y guarda en Firestore (padre)
   void _handleEmotionSelection(String emotion, String source) {
     if (emotion.isEmpty) return;
+
+    final timeTaken = DateTime.now().difference(_entryTime).inMilliseconds;
+
     _setSelectedEmotion(emotion);
     _saveEmotionToFirestore(emotion, source);
 
-    // 🔹 Nuevo: registrar en Analytics
     _analytics.logEvent(
       name: 'emotion_selected',
-      parameters: <String, Object>{
+      parameters: {
         'emotion': emotion,
-        'source': source, // slider, knob1, knob2
-        'user_id': _getCurrentUserId(),
+        'source': source,
+        'user_id': ?_getCurrentUserId(),
+        'time_taken_ms': timeTaken, // 💡 Tiempo hasta primera selección
       },
     );
 
-    print("📊 Analytics: emotion_selected -> $emotion ($source)");
+    print("📊 Analytics: emotion_selected -> $emotion ($source) in ${timeTaken}ms");
   }
 
   // ========================================================
@@ -401,6 +406,7 @@ Future<void> _trySyncSessionOnline(String uid, String sessionId, List<String> em
   @override
   void initState() {
     super.initState();
+    _entryTime = DateTime.now();
 
     // 🎬 Inicialización de animación existente
     _controller = AnimationController(
@@ -529,7 +535,7 @@ Future<void> _trySyncSessionOnline(String uid, String sessionId, List<String> em
             const SizedBox(height: 5),
 
             // 📍 Navbar arriba
-            Navbar(
+            const Navbar(
               username: "Jay Walker",
               title: "Lightning Ninja",
               subtitle: "Stellar Emotions",
