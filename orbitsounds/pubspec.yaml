@@ -90,6 +90,8 @@ dependencies:
   #Native Timezone
   flutter_timezone: ^5.0.0
   audio_session: ^0.1.6       # recomendado junto con just_audio  
+  # Hero Icons (runtime dependency)
+  heroicons: ^0.9.0
 
 
 
@@ -112,8 +114,6 @@ dev_dependencies:
   flutter_lints: ^5.0.0
   #For fonts
   google_fonts: ^6.1.0
-  # Hero Icons
-  heroicons: ^0.9.0
   #Feather icons
   flutter_feather_icons: ^2.0.0+1
   #HIVE
