@@ -1,11 +1,11 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:orbitsounds/components/navbar.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:orbitsounds/views/genre_selector.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:orbitsounds/components/navbar.dart';
+import 'package:orbitsounds/views/genre_selector.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 
@@ -782,7 +782,7 @@ Widget build(BuildContext context) {
     body: Column(
       children: [
         const SizedBox(height: 40),
-        Navbar(
+        const Navbar(
           username: "Jay Walker",
           title: "Lightning Ninja",
           subtitle: "Stellar Emotions",
@@ -1011,44 +1011,55 @@ Widget build(BuildContext context) {
                           left: cruzPos.dx - 150,
                           child: GestureDetector(
                             onTap: () async {
-                              String? emotionToSave;
-                              if (_selected.isEmpty) {
-                                print("⚠️ Ninguna constelación seleccionada");
-                                return;
-                              }
+                            String? emotionToSave;
+                            if (_selected.isEmpty) {
+                              print("⚠️ Ninguna constelación seleccionada");
+                              return;
+                            }
 
-                              if (_selected.length == 1) {
-                                final idx = constellations.indexOf(_selected.first);
-                                emotionToSave = constellationInfo["$idx"]?["emotion"] as String?;
-                              } else {
-                                final i1 = constellations.indexOf(_selected[0]);
-                                final i2 = constellations.indexOf(_selected[1]);
-                                final ordered = [i1, i2]..sort();
-                                final key = "${ordered[0]}_${ordered[1]}";
-                                emotionToSave = constellationInfo[key]?["emotion"] as String?;
-                              }
+                            if (_selected.length == 1) {
+                              final idx = constellations.indexOf(_selected.first);
+                              emotionToSave = constellationInfo["$idx"]?["emotion"] as String?;
+                            } else if (_selected.length == 2) {
+                              final i1 = constellations.indexOf(_selected[0]);
+                              final i2 = constellations.indexOf(_selected[1]);
+                              final ordered = [i1, i2]..sort();
+                              final key = "${ordered[0]}_${ordered[1]}";
+                              emotionToSave = constellationInfo[key]?["emotion"] as String?;
+                            }
 
-                              if (emotionToSave == null || emotionToSave.isEmpty) {
-                                print("⚠️ No se encontró emoción para la selección actual");
-                                return;
-                              }
+                            if (emotionToSave == null || emotionToSave!.isEmpty) {
+                              print("⚠️ No se encontró emoción para la selección actual");
+                              return;
+                            }
 
-                              print("🌟 Emoción de constelación detectada: $emotionToSave");
-                              // Guardar en segundo plano (online/offline)
+                            print("🌟 Emoción de constelación detectada: $emotionToSave");
+                            unawaited(_saveConstellationEmotion(emotionToSave!));
+
+                            setState(() {
+                              for (var c in constellations) c.isSelected = false;
+                              _selected.clear();
+                            });
+
+                            // 🚀 Iniciar guardado en segundo plano
+                            if (emotionToSave.isNotEmpty) {
                               unawaited(_saveConstellationEmotion(emotionToSave));
-
-                              // Limpiar selección visual
+                            if (emotionToSave.isNotEmpty) {
+                              unawaited(_saveConstellationEmotion(emotionToSave));
                               setState(() {
                                 for (var c in constellations) c.isSelected = false;
                                 _selected.clear();
                               });
+                            }
+                            }
 
-                              // Avanzar de página inmediatamente
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(builder: (_) => GenreSelectorPage()),
-                              );
-                            },
+                            // 💨 Avanzar de página inmediatamente
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const GenreSelectorPage()),
+                            );
+                          },
+
                             child: Container(
                               width: 300,
                               padding: const EdgeInsets.symmetric(

@@ -2,9 +2,9 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
-import 'package:orbitsounds/components/achivement_popup.dart';
-import 'package:orbitsounds/views/home_screen.dart';
-import 'package:orbitsounds/views/playlist_screen.dart';
+import 'package:melodymuse/components/achivement_popup.dart';
+import 'package:melodymuse/views/home_screen.dart';
+import 'package:melodymuse/views/playlist_screen.dart';
 import 'package:heroicons/heroicons.dart';
 import 'dart:io'; // 👈 necesario para exit(0)
 import 'package:flutter/services.dart'; // 👈 necesario para SystemNavigator.pop()

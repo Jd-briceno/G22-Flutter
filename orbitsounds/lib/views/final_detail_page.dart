@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 // Views (updated paths under views/)
-import 'package:orbitsounds/views/home_screen.dart';
-import 'package:orbitsounds/views/mood_playlist_screen.dart';
-import 'package:orbitsounds/views/captain-longbook.dart';
-import 'package:orbitsounds/views/library_screen.dart';
-import 'package:orbitsounds/views/profile.dart';
-import 'package:orbitsounds/views/social_vinyl.dart';
-import 'package:orbitsounds/views/soul_sync_terminal.dart';
-import 'package:orbitsounds/views/music_detail_screen.dart';
+import 'package:melodymuse/views/home_screen.dart';
+import 'package:melodymuse/views/mood_playlist_screen.dart';
+import 'package:melodymuse/views/captain-longbook.dart';
+import 'package:melodymuse/views/library_screen.dart';
+import 'package:melodymuse/views/profile.dart';
+import 'package:melodymuse/views/social_vinyl.dart';
+import 'package:melodymuse/views/soul_sync_terminal.dart';
+import 'package:melodymuse/views/music_detail_screen.dart';
 
 /// Final screen shown after completing profile/setup.
 /// Previously referenced as `FinalDetailsPage(user: ...)` from `complete_profile_page.dart`.

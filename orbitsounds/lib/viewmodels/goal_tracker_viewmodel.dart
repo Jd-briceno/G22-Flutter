@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:orbitsounds/models/listening_goal_model.dart';
-import 'package:orbitsounds/models/track_model.dart';
+import 'package:melodymuse/models/listening_goal_model.dart';
+import 'package:melodymuse/models/track_model.dart';
 import '../services/notification_service.dart';
 
 class GoalTrackerViewModel {

@@ -8,6 +8,7 @@ class ListeningGoal {
   int songsPlayed;     // Número de canciones escuchadas del género
   int likesGiven;      // Cuántas canciones del género fueron marcadas como favoritas
   String? lastSession; // Fecha de última sesión (para estadísticas o streaks)
+  int sessionsCount; // Sesiones para promedio
 
   ListeningGoal({
     required this.genre,
@@ -17,6 +18,8 @@ class ListeningGoal {
     this.songsPlayed = 0,
     this.likesGiven = 0,
     this.lastSession,
+    this.sessionsCount = 0, // 👈 Valor inicial
+
   });
 
   factory ListeningGoal.fromMap(Map<String, dynamic> map) {
@@ -36,6 +39,7 @@ class ListeningGoal {
           ? (map['likesGiven'] as num).toInt()
           : 0,
       lastSession: map['lastSession'],
+      sessionsCount: (map['sessionsCount'] ?? 0).toInt(), // 👈
     );
   }
 
@@ -48,6 +52,7 @@ class ListeningGoal {
       'songsPlayed': songsPlayed,
       'likesGiven': likesGiven,
       'lastSession': lastSession,
+      'sessionsCount': sessionsCount, // 👈
     };
   }
 }
