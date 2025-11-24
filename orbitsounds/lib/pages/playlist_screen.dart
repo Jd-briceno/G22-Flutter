@@ -66,7 +66,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
     "J-Rock": "assets/images/Kamui.jpg",
     "Punk": "assets/images/Hobbie.jpg",
     "Medieval": "assets/images/Dungeons.jpg",
-    "Rap": "assets/images/Rap.jpg",
+    "Rap": "assets/images/rap.jpg",
     "Anisong": "assets/images/Anisong.jpg",
     "Musical": "assets/images/Musical.jpg",
   };
