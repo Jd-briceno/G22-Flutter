@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
-import 'package:orbitsounds/views/music_detail_screen.dart';
+import 'package:melodymuse/pages/music_detail_screen.dart';
 import '../models/track_model.dart';
 import '../services/spotify_service.dart';
 import '../components/track_tile.dart';
