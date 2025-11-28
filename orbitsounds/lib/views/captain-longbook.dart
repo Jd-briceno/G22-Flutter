@@ -13,7 +13,6 @@ import 'package:melodymuse/views/longbook_history_screen.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 
 import '../services/weather_service.dart';
-import '../models/weather_model.dart';
 
 class Longbook extends StatefulWidget {
   const Longbook({super.key});
