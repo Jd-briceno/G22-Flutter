@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import '../services/ares_playlist_generator_service.dart';
 import '../models/track_model.dart';
+import '../services/hive_service.dart';
 
 class MoodPlaylistScreen extends StatefulWidget {
   const MoodPlaylistScreen({super.key});
@@ -23,9 +26,40 @@ class _MoodPlaylistScreenState extends State<MoodPlaylistScreen> {
   @override
   void initState() {
     super.initState();
-    _generator.progressStream.listen((p) {
-      setState(() => _progress = p);
-    });
+
+    _generator.progressStream.listen(
+      (p) {
+        if (mounted) setState(() => _progress = p);
+      },
+      onError: (err) => debugPrint("❌ Error en el stream de progreso: $err"),
+      onDone: () => debugPrint("✔️ Stream de progreso finalizado"),
+    );
+
+    // 🧠 NUEVO → Cargar última playlist cacheada
+    _loadLastCachedPlaylist();
+  }
+
+  /// 🧠 Cargar última playlist guardada en Hive
+  Future<void> _loadLastCachedPlaylist() async {
+    final cached = HiveService.getLastMoodPlaylist();
+
+    if (cached != null && cached.isNotEmpty) {
+      setState(() {
+        _tracks = cached
+            .map((m) => Track.fromMap(Map<String, dynamic>.from(m)))
+            .toList();
+        _progress = 1.0;
+      });
+
+      print("⚡ Última playlist cargada desde Hive.");
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("⚡ Mostrando tu última playlist generada."),
+          backgroundColor: Colors.deepPurpleAccent,
+        ),
+      );
+    }
   }
 
   Future<void> _generatePlaylist() async {
@@ -37,40 +71,69 @@ class _MoodPlaylistScreenState extends State<MoodPlaylistScreen> {
       _tracks.clear();
     });
 
-    // Generar playlist basada en el estado emocional
-    final playlist = await _generator.generateMoodBasedPlaylist(_userInput);
+    try {
+      final playlist = await _generator.generateMoodBasedPlaylist(_userInput);
 
-    setState(() {
-      _tracks = playlist?.tracks ?? [];
-      _loading = false;
-      _progress = 1.0;
-    });
+      if (!mounted) return;
 
-    // Registrar generación de playlist
-    await _analytics.logEvent(
-      name: 'mood_playlist_generated',
-      parameters: {
-        'user_mood_input': _userInput,
-        'track_count': _tracks.length,
-        'timestamp': DateTime.now().toIso8601String(),
-      },
-    );
+      final generatedTracks = playlist?.tracks ?? [];
 
-    final user = FirebaseAuth.instance.currentUser;
+      setState(() {
+        _tracks = generatedTracks;
+        _progress = 1.0;
+      });
 
-    await _analytics.logEvent(
-      name: 'mood_playlist_generated',
-      parameters: {
-        'user_id': user?.uid ?? 'anonymous',
-        'user_mood_input': _userInput,
-        'track_count': _tracks.length,
-        'timestamp': DateTime.now().toIso8601String(),
-      },
-    );
+      // 🧠 NUEVO → Guardar en Hive como *última playlist*
+      await HiveService.saveLastMoodPlaylist(
+        generatedTracks.map((t) => t.toMap()).toList(),
+      );
+
+      final user = FirebaseAuth.instance.currentUser;
+
+      await _analytics.logEvent(
+        name: 'mood_playlist_generated',
+        parameters: {
+          'user_id': user?.uid ?? 'anonymous',
+          'user_mood_input': _userInput,
+          'track_count': _tracks.length,
+          'timestamp': DateTime.now().toIso8601String(),
+        },
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("🎶 Playlist generada con éxito")),
+      );
+    } on SocketException {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Sin conexión. Cargando playlist guardada…"),
+          backgroundColor: Colors.orangeAccent,
+        ),
+      );
+
+      // 🧠 NUEVO fallback offline
+      await _loadLastCachedPlaylist();
+    } catch (e, st) {
+      debugPrint("❌ Error generando playlist: $e\n$st");
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Ocurrió un error generando tu playlist 😔"),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
   }
 
   Future<void> _askFeedback() async {
-    double rating = 3; // valor por defecto
+    double rating = 3;
 
     await showDialog(
       context: context,
@@ -80,7 +143,7 @@ class _MoodPlaylistScreenState extends State<MoodPlaylistScreen> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text("1 = nada que ver | 5 = totalmente mi estado"),
+              const Text("1 = Nada que ver | 5 = Muy precisa"),
               const SizedBox(height: 16),
               StatefulBuilder(
                 builder: (context, setState) {
@@ -92,7 +155,7 @@ class _MoodPlaylistScreenState extends State<MoodPlaylistScreen> {
                         max: 5,
                         divisions: 4,
                         label: rating.toStringAsFixed(0),
-                        onChanged: (value) => setState(() => rating = value),
+                        onChanged: (v) => setState(() => rating = v),
                       ),
                       Text("Valor: ${rating.toStringAsFixed(0)}"),
                     ],
@@ -107,9 +170,7 @@ class _MoodPlaylistScreenState extends State<MoodPlaylistScreen> {
               child: const Text("Cancelar"),
             ),
             ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context, rating);
-              },
+              onPressed: () => Navigator.pop(context, rating),
               child: const Text("Enviar"),
             ),
           ],
@@ -117,7 +178,6 @@ class _MoodPlaylistScreenState extends State<MoodPlaylistScreen> {
       },
     ).then((result) async {
       if (result != null) {
-        // Guardar feedback en Firebase Analytics
         await _analytics.logEvent(
           name: 'playlist_feedback',
           parameters: {
@@ -154,7 +214,7 @@ class _MoodPlaylistScreenState extends State<MoodPlaylistScreen> {
         backgroundColor: Colors.deepPurpleAccent,
       ),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         child: Column(
           children: [
             TextField(
@@ -164,7 +224,9 @@ class _MoodPlaylistScreenState extends State<MoodPlaylistScreen> {
               ),
               onChanged: (value) => _userInput = value,
             ),
+
             const SizedBox(height: 12),
+
             ElevatedButton.icon(
               onPressed: _generatePlaylist,
               icon: const Icon(Icons.music_note),
@@ -174,16 +236,16 @@ class _MoodPlaylistScreenState extends State<MoodPlaylistScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               ),
             ),
+
             if (_loading) ...[
               const SizedBox(height: 20),
-              LinearProgressIndicator(
-                value: _progress,
-                color: Colors.deepPurpleAccent,
-              ),
+              LinearProgressIndicator(value: _progress, color: Colors.deepPurpleAccent),
               const SizedBox(height: 10),
               const Text("Generando tu playlist... 🎶"),
             ],
+
             const SizedBox(height: 20),
+
             Expanded(
               child: _tracks.isEmpty
                   ? const Center(
@@ -212,7 +274,9 @@ class _MoodPlaylistScreenState extends State<MoodPlaylistScreen> {
                             },
                           ),
                         ),
+
                         const SizedBox(height: 12),
+
                         ElevatedButton.icon(
                           onPressed: _askFeedback,
                           icon: const Icon(Icons.feedback),
