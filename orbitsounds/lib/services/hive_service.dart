@@ -34,4 +34,23 @@ class HiveService {
   static Future<void> clearTrackCache() async {
     await trackCacheBox.clear();
   }
+
+  static Future<void> saveLastMoodPlaylist(List<Map<String, dynamic>> tracks) async {
+    await trackCacheBox.put('mood_last', tracks);
+  }
+
+  static List<Map<String, dynamic>>? getLastMoodPlaylist() {
+    final cached = trackCacheBox.get('mood_last');
+    if (cached != null) {
+      return List<Map<String, dynamic>>.from(cached);
+    }
+    return null;
+  }
+
+  static Future<void> clearMoodCache() async {
+    final keys = trackCacheBox.keys.where((k) => k.toString().startsWith("mood_")).toList();
+    for (var key in keys) {
+      await trackCacheBox.delete(key);
+    }
+  }
 }
