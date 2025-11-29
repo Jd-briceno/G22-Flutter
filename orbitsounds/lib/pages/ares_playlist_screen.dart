@@ -1,16 +1,18 @@
+ares_playlist_screen: import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:heroicons/heroicons.dart';
 import '../models/track_model.dart';
 import '../services/spotify_service.dart';
+import '../services/hive_service.dart';
 
 class AresPlaylistScreen extends StatefulWidget {
   final String title;
   final String description;
   final String coverUrl;
-  final List<dynamic> tracks; // puede venir vacío o con ids/refs de Firestore
-  final String? playlistId; // si guardaste el ID de Spotify en Firestore
+  final List<dynamic> tracks;
+  final String? playlistId;
 
   const AresPlaylistScreen({
     super.key,
@@ -31,46 +33,133 @@ class _AresPlaylistScreenState extends State<AresPlaylistScreen> {
   List<Track> _tracks = [];
   Duration _totalDuration = Duration.zero;
 
+  final String _cacheKey = "ares_mix";
+
   @override
   void initState() {
     super.initState();
+    _loadInitialTracks(); // <<--- cambio CLAVE
+  }
+
+  Future<bool> hasInternetConnection() async {
+    try {
+      final result = await InternetAddress.lookup('example.com');
+      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // 🚀 Nuevo: decide si cargar cache o llamar a _loadTracks()
+  Future<void> _loadInitialTracks() async {
+    final bool online = await hasInternetConnection();
+
+    if (!online) {
+      debugPrint("📴 No internet. Loading cached playlist...");
+      final cached = HiveService.getLastAresMix(_cacheKey);
+
+      if (cached != null && cached.isNotEmpty) {
+        final fetched = cached
+            .map((m) => Track.fromMap(Map<String, dynamic>.from(m)))
+            .toList();
+
+        final totalMs = fetched.fold<int>(0, (sum, t) => sum + t.durationMs);
+
+        setState(() {
+          _tracks = fetched;
+          _totalDuration = Duration(milliseconds: totalMs);
+          _loading = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("📴 Offline mode: loaded last saved Ares Mix."),
+            backgroundColor: Colors.orangeAccent,
+          ),
+        );
+
+        return;
+      }
+
+      setState(() => _loading = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("❌ No connection and no cached Ares Mix available"),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+
+      return;
+    }
+
+    // Si hay internet → carga normal
     _loadTracks();
   }
 
+  // 🔥 Solo se ejecuta cuando sí hay internet
   Future<void> _loadTracks() async {
-    try {
-      List<Track> fetched = [];
+    List<Track> fetched = [];
+    bool success = false;
 
-      // 1️⃣ Si la playlist viene con un ID real de Spotify
+    try {
       if (widget.playlistId != null && widget.playlistId!.isNotEmpty) {
         fetched = await _spotifyService.getPlaylistTracks(widget.playlistId!);
-      }
-
-      // 2️⃣ Si viene con una lista de objetos (de Firestore)
-      else if (widget.tracks.isNotEmpty &&
+        success = fetched.isNotEmpty;
+      } else if (widget.tracks.isNotEmpty &&
           widget.tracks.first is Map<String, dynamic>) {
         fetched = widget.tracks.map((t) {
           return Track(
             title: t['title'] ?? '',
             artist: t['artist'] ?? '',
-            albumArt: t['albumArt'] ??
-                widget.coverUrl, // usa la carátula del mix si no hay
+            albumArt: t['albumArt'] ?? widget.coverUrl,
             duration: _formatMsToDuration(t['durationMs']),
             durationMs: t['durationMs'] ?? 180000,
           );
         }).toList();
+        success = fetched.isNotEmpty;
       }
 
-      final totalMs = fetched.fold<int>(0, (sum, t) => sum + t.durationMs);
-      setState(() {
-        _tracks = fetched;
-        _totalDuration = Duration(milliseconds: totalMs);
-        _loading = false;
-      });
+      if (success) {
+        await HiveService.saveLastAresMix(
+          _cacheKey,
+          fetched.map((t) => t.toMap()).toList(),
+        );
+      } else {
+        throw Exception("Empty playlist");
+      }
     } catch (e) {
-      debugPrint("⚠️ Error cargando tracks del mix: $e");
-      setState(() => _loading = false);
+      debugPrint("❌ Error loading mix online: $e");
+
+      final cached = HiveService.getLastAresMix(_cacheKey);
+      if (cached != null && cached.isNotEmpty) {
+        fetched = cached
+            .map((m) => Track.fromMap(Map<String, dynamic>.from(m)))
+            .toList();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("⚠️ Online failed. Loaded cached mix."),
+            backgroundColor: Colors.orangeAccent,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("❌ No mix available"),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
     }
+
+    final totalMs = fetched.fold<int>(0, (sum, t) => sum + t.durationMs);
+
+    setState(() {
+      _tracks = fetched;
+      _totalDuration = Duration(milliseconds: totalMs);
+      _loading = false;
+    });
   }
 
   String _formatMsToDuration(int? ms) {
@@ -81,19 +170,22 @@ class _AresPlaylistScreenState extends State<AresPlaylistScreen> {
     return "$min:$sec";
   }
 
+  String _formatTotal(Duration d) {
+    final m = d.inMinutes;
+    final s = d.inSeconds.remainder(60);
+    return "${m}m ${s}s";
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF010B19),
       body: Stack(
         children: [
-          // 🌌 Fondo difuminado
           Positioned.fill(
             child: CachedNetworkImage(
               imageUrl: widget.coverUrl,
               fit: BoxFit.cover,
-              errorWidget: (_, __, ___) =>
-                  const Icon(Icons.music_note, color: Colors.white30),
             ),
           ),
           Container(color: Colors.black.withOpacity(0.8)),
@@ -101,10 +193,9 @@ class _AresPlaylistScreenState extends State<AresPlaylistScreen> {
           SafeArea(
             child: Column(
               children: [
-                // 🔙 Barra superior
+                // === HEADER ===
                 Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16.0, vertical: 8.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -120,7 +211,6 @@ class _AresPlaylistScreenState extends State<AresPlaylistScreen> {
                         "ARES SMART MIX",
                         style: GoogleFonts.encodeSansExpanded(
                           color: Colors.white70,
-                          fontSize: 14,
                           letterSpacing: 2,
                         ),
                       ),
@@ -129,7 +219,7 @@ class _AresPlaylistScreenState extends State<AresPlaylistScreen> {
                   ),
                 ),
 
-                // 🌠 Portada
+                // === COVER ===
                 ClipRRect(
                   borderRadius: BorderRadius.circular(16),
                   child: CachedNetworkImage(
@@ -137,24 +227,20 @@ class _AresPlaylistScreenState extends State<AresPlaylistScreen> {
                     width: 180,
                     height: 180,
                     fit: BoxFit.cover,
-                    placeholder: (_, __) => const Center(
-                      child: CircularProgressIndicator(
-                        color: Color(0xFFE9E8EE),
-                        strokeWidth: 2,
-                      ),
-                    ),
                   ),
                 ),
+
                 const SizedBox(height: 16),
 
                 Text(
                   widget.title,
                   style: GoogleFonts.encodeSansExpanded(
+                    fontSize: 24,
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
-                    fontSize: 24,
                   ),
                 ),
+
                 const SizedBox(height: 8),
 
                 Padding(
@@ -171,7 +257,6 @@ class _AresPlaylistScreenState extends State<AresPlaylistScreen> {
 
                 const SizedBox(height: 16),
 
-                // 🕓 Duración total
                 if (!_loading && _tracks.isNotEmpty)
                   Text(
                     "Total duration: ${_formatTotal(_totalDuration)}",
@@ -183,91 +268,15 @@ class _AresPlaylistScreenState extends State<AresPlaylistScreen> {
 
                 const SizedBox(height: 16),
 
-                // 🎧 Botones principales
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      ElevatedButton.icon(
-                        onPressed: _tracks.isEmpty
-                            ? null
-                            : () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text("🚀 Playing Ares Mix..."),
-                                  ),
-                                );
-                              },
-                        icon: const HeroIcon(
-                          HeroIcons.playCircle,
-                          color: Colors.white,
-                          size: 22,
-                        ),
-                        label: Text(
-                          "Play Mix",
-                          style: GoogleFonts.encodeSansExpanded(
-                            color: Colors.white,
-                            fontSize: 14,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFBD001B),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 20, vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      OutlinedButton.icon(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text("💾 Mix saved to your library"),
-                            ),
-                          );
-                        },
-                        icon: const HeroIcon(
-                          HeroIcons.heart,
-                          color: Color(0xFFBD001B),
-                          size: 22,
-                        ),
-                        label: Text(
-                          "Save",
-                          style: GoogleFonts.encodeSansExpanded(
-                            color: const Color(0xFFBD001B),
-                            fontSize: 14,
-                          ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Color(0xFFBD001B)),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 20, vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // 🎶 Lista de canciones
                 Expanded(
                   child: _loading
                       ? const Center(
-                          child: CircularProgressIndicator(
-                            color: Color(0xFFE9E8EE),
-                          ),
+                          child: CircularProgressIndicator(color: Color(0xFFE9E8EE)),
                         )
                       : _tracks.isEmpty
                           ? Center(
                               child: Text(
-                                "No songs found in this mix.",
+                                "No songs found.",
                                 style: GoogleFonts.robotoMono(
                                   color: Colors.white70,
                                   fontSize: 13,
@@ -286,13 +295,6 @@ class _AresPlaylistScreenState extends State<AresPlaylistScreen> {
                                       width: 55,
                                       height: 55,
                                       fit: BoxFit.cover,
-                                      errorWidget: (_, __, ___) => Container(
-                                        width: 55,
-                                        height: 55,
-                                        color: Colors.white10,
-                                        child: const Icon(Icons.music_note,
-                                            color: Colors.white54),
-                                      ),
                                     ),
                                   ),
                                   title: Text(
@@ -323,15 +325,9 @@ class _AresPlaylistScreenState extends State<AresPlaylistScreen> {
                 ),
               ],
             ),
-          ),
+          )
         ],
       ),
     );
-  }
-
-  String _formatTotal(Duration d) {
-    final m = d.inMinutes;
-    final s = d.inSeconds.remainder(60);
-    return "${m}m ${s}s";
   }
 }
