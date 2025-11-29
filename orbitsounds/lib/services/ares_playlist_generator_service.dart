@@ -1,10 +1,11 @@
-import 'dart:async';
+ares_playlist_generator: import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../models/playlist_model.dart';
 import '../models/track_model.dart';
 import 'ares_service.dart';
 import 'spotify_service.dart';
+import 'package:hive/hive.dart';
 
 class AresPlaylistGeneratorService {
   final AresService _ares = AresService();
@@ -125,5 +126,26 @@ class AresPlaylistGeneratorService {
 
   void dispose() {
     _progressController.close();
+  }
+
+  /// 📦 Guarda la última playlist generada (cache offline)
+  Future<void> cachePlaylist(Playlist playlist) async {
+    final box = await Hive.openBox('trackCache');
+    await box.put('last_ares_playlist', playlist.toMap());
+    debugPrint("💾 Playlist cached");
+  }
+
+  /// 📦 Cargar playlist cacheada (cuando no hay internet)
+  Future<Playlist?> getCachedPlaylist() async {
+    final box = await Hive.openBox('trackCache');
+    final data = box.get('last_ares_playlist');
+    if (data == null) return null;
+
+    try {
+      return Playlist.fromMap(Map<String, dynamic>.from(data));
+    } catch (e) {
+      debugPrint("❌ Error reading cached playlist: $e");
+      return null;
+    }
   }
 }
