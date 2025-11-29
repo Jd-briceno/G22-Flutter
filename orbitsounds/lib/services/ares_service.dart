@@ -1,9 +1,10 @@
-import 'dart:convert';
+ares_service: import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:melodymuse/services/spotify_service.dart';
+import 'package:hive/hive.dart';
 
 class AresService {
   final String _apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
@@ -21,7 +22,7 @@ class AresService {
     final prompt = """
 Eres Ares, una IA musical que crea playlists personalizadas según los gustos e intereses del usuario.
 
-Devuelve **SOLO** un JSON válido, con **exactamente 15 canciones únicas**, sin texto adicional, sin ```json, ni explicaciones.
+Devuelve *SOLO* un JSON válido, con *exactamente 15 canciones únicas*, sin texto adicional, sin json, ni explicaciones.
 
 Formato:
 [
@@ -62,8 +63,8 @@ Canciones que le gustan: ${likedSongs.join(", ")}
     }
 
     String cleanedText = text
-        .replaceAll(RegExp(r'```json', caseSensitive: false), '')
-        .replaceAll('```', '')
+        .replaceAll(RegExp(r'json', caseSensitive: false), '')
+        .replaceAll('', '')
         .trim();
 
     try {
@@ -92,6 +93,20 @@ Canciones que le gustan: ${likedSongs.join(", ")}
     }
   }
 
+  Future<void> cacheGeneratedPlaylist(List<Map<String, String>> playlist) async {
+      final box = await Hive.openBox('trackCache');
+      await box.put('last_ares_playlist', playlist);
+    }
+
+    Future<List<Map<String, String>>?> getCachedPlaylist() async {
+    final box = await Hive.openBox('trackCache');
+    final data = box.get('last_ares_playlist');
+    if (data != null) {
+      return List<Map<String, String>>.from(data);
+    }
+    return null;
+  }
+
   /// 🧠 Nueva función: genera playlist desde una descripción emocional o conversacional
   Future<List<Map<String, String>>> generatePlaylistFromMood(String moodPrompt) async {
     final uri = Uri.parse(
@@ -105,7 +120,7 @@ Usuario dice: "$moodPrompt"
 
 Crea una playlist de **exactamente 15 canciones únicas** que reflejen o transformen su estado emocional.
 
-Devuelve **solo un JSON válido**, sin texto adicional, sin comentarios, ni ```json```.
+Devuelve **solo un JSON válido**, sin texto adicional, sin comentarios, ni json.
 
 Formato:
 [
@@ -142,8 +157,8 @@ Formato:
     }
 
     String cleanedText = text
-        .replaceAll(RegExp(r'```json', caseSensitive: false), '')
-        .replaceAll('```', '')
+        .replaceAll(RegExp(r'json', caseSensitive: false), '')
+        .replaceAll('', '')
         .trim();
 
     try {
@@ -300,7 +315,7 @@ No incluyas texto fuera del JSON.
       }
 
       final cleaned = text
-          .replaceAll(RegExp(r'```json', caseSensitive: false), '')
+          .replaceAll(RegExp(r'json', caseSensitive: false), '')
           .replaceAll('```', '')
           .trim();
 

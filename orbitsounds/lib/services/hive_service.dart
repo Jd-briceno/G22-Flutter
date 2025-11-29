@@ -1,4 +1,4 @@
-import 'package:hive/hive.dart';
+hive_service:import 'package:hive/hive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 class HiveService {
@@ -49,6 +49,26 @@ class HiveService {
 
   static Future<void> clearMoodCache() async {
     final keys = trackCacheBox.keys.where((k) => k.toString().startsWith("mood_")).toList();
+    for (var key in keys) {
+      await trackCacheBox.delete(key);
+    }
+  }
+
+  static Future<void> saveLastAresMix(String cacheKey, List<Map<String, dynamic>> tracks) async {
+    await trackCacheBox.put('ares_mix_$cacheKey', tracks);
+  }
+
+  static List<Map<String, dynamic>>? getLastAresMix(String cacheKey) {
+    final cached = trackCacheBox.get('ares_mix_$cacheKey');
+    if (cached != null) {
+      return List<Map<String, dynamic>>.from(cached);
+    }
+    return null;
+  }
+
+  // (opcional) limpiar cache de mixes Ares
+  static Future<void> clearAresMixCache() async {
+    final keys = trackCacheBox.keys.where((k) => k.toString().startsWith('ares_mix_')).toList();
     for (var key in keys) {
       await trackCacheBox.delete(key);
     }
