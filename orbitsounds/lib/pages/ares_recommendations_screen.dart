@@ -494,7 +494,7 @@ class _AresRecommendationsScreenState extends State<AresRecommendationsScreen> {
                                       width: 50,
                                       height: 50,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => const Icon(
+                                      errorBuilder: (, _, _) => const Icon(
                                         Icons.broken_image,
                                         color: Color(0xFF8C1007),
                                       ),

@@ -28,7 +28,7 @@ class PlaylistScreen extends StatefulWidget {
 }
 
 class _PlaylistScreenState extends State<PlaylistScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
   int? nowPlayingIndex;
   late AnimationController _waveController;
   final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
@@ -40,6 +40,23 @@ class _PlaylistScreenState extends State<PlaylistScreen>
   String? aiDescription;
   bool isLiked = false;
   int? userRating; // ⭐️ Guarda la calificación del usuario
+
+  // Reusable text styles to reduce object allocations on rebuilds
+  static const TextStyle _descriptionTextStyle = TextStyle(
+    fontSize: 16,
+    color: Colors.white70,
+  );
+
+  static const TextStyle _questionTextStyle = TextStyle(
+    color: Colors.white,
+    fontSize: 16,
+  );
+
+  static const TextStyle _durationTextStyle = TextStyle(
+    fontSize: 14,
+    fontStyle: FontStyle.italic,
+    color: Colors.greenAccent,
+  );
 
   final Map<String, String> _playlistNames = {
     "Pop": "Pop Vibes",
@@ -68,7 +85,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
     "J-Rock": "assets/images/Kamui.jpg",
     "Punk": "assets/images/Hobbie.jpg",
     "Medieval": "assets/images/Dungeons.jpg",
-    "Rap": "assets/images/Rap.jpg",
+    "Rap": "assets/images/rap.jpg",
     "Anisong": "assets/images/Anisong.jpg",
     "Musical": "assets/images/Musical.jpg",
   };
@@ -105,6 +122,9 @@ class _PlaylistScreenState extends State<PlaylistScreen>
     "Anisong":
         "Epic melodies and emotional power, straight from anime worlds of heroes and dreams."
   };
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -249,6 +269,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final playlistName =
         _playlistNames[widget.genre] ?? "${widget.genre} Playlist";
     final coverImage = _playlistCovers[widget.genre] ?? "";
@@ -332,20 +353,14 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                           Text(
                             _fallbackDescriptions[widget.genre] ??
                                 "Enjoy the best of ${widget.genre} 🎶.",
-                            style: const TextStyle(
-                              fontSize: 16,
-                              color: Colors.white70,
-                            ),
+                            style: _descriptionTextStyle,
                           ),
                           const SizedBox(height: 12),
 
                           // ⭐ FEEDBACK DE USUARIO
                           Text(
                             "¿Qué tan bien refleja esta playlist tu estado de ánimo?",
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                            ),
+                            style: _questionTextStyle,
                           ),
                           const SizedBox(height: 8),
                           Row(
@@ -371,11 +386,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
 
                           Text(
                             "Total Duration: ${_formatDuration(totalDuration)}",
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontStyle: FontStyle.italic,
-                              color: Colors.greenAccent,
-                            ),
+                            style: _durationTextStyle,
                           ),
                           const SizedBox(height: 12),
 
@@ -416,6 +427,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                           ListView.builder(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
+                            cacheExtent: 600,
                             itemCount: tracks.length,
                             itemBuilder: (context, index) {
                               final track = tracks[index];

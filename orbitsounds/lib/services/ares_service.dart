@@ -1,4 +1,4 @@
-import 'dart:convert';
+ares_service: import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -22,7 +22,7 @@ class AresService {
     final prompt = """
 Eres Ares, una IA musical que crea playlists personalizadas según los gustos e intereses del usuario.
 
-Devuelve **SOLO** un JSON válido, con **exactamente 15 canciones únicas**, sin texto adicional, sin ```json, ni explicaciones.
+Devuelve *SOLO* un JSON válido, con *exactamente 15 canciones únicas*, sin texto adicional, sin json, ni explicaciones.
 
 Formato:
 [
@@ -63,8 +63,8 @@ Canciones que le gustan: ${likedSongs.join(", ")}
     }
 
     String cleanedText = text
-        .replaceAll(RegExp(r'```json', caseSensitive: false), '')
-        .replaceAll('```', '')
+        .replaceAll(RegExp(r'json', caseSensitive: false), '')
+        .replaceAll('', '')
         .trim();
 
     try {
@@ -120,7 +120,7 @@ Usuario dice: "$moodPrompt"
 
 Crea una playlist de **exactamente 15 canciones únicas** que reflejen o transformen su estado emocional.
 
-Devuelve **solo un JSON válido**, sin texto adicional, sin comentarios, ni ```json```.
+Devuelve **solo un JSON válido**, sin texto adicional, sin comentarios, ni json.
 
 Formato:
 [
@@ -157,8 +157,8 @@ Formato:
     }
 
     String cleanedText = text
-        .replaceAll(RegExp(r'```json', caseSensitive: false), '')
-        .replaceAll('```', '')
+        .replaceAll(RegExp(r'json', caseSensitive: false), '')
+        .replaceAll('', '')
         .trim();
 
     try {
@@ -315,7 +315,7 @@ No incluyas texto fuera del JSON.
       }
 
       final cleaned = text
-          .replaceAll(RegExp(r'```json', caseSensitive: false), '')
+          .replaceAll(RegExp(r'json', caseSensitive: false), '')
           .replaceAll('```', '')
           .trim();
 
