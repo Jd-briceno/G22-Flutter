@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:melodymuse/services/spotify_service.dart';
+import 'package:hive/hive.dart';
 
 class AresService {
   final String _apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
@@ -90,6 +91,20 @@ Canciones que le gustan: ${likedSongs.join(", ")}
       print("⚠️ No se pudo parsear JSON: $cleanedText");
       return [];
     }
+  }
+
+  Future<void> cacheGeneratedPlaylist(List<Map<String, String>> playlist) async {
+      final box = await Hive.openBox('trackCache');
+      await box.put('last_ares_playlist', playlist);
+    }
+
+    Future<List<Map<String, String>>?> getCachedPlaylist() async {
+    final box = await Hive.openBox('trackCache');
+    final data = box.get('last_ares_playlist');
+    if (data != null) {
+      return List<Map<String, String>>.from(data);
+    }
+    return null;
   }
 
   /// 🧠 Nueva función: genera playlist desde una descripción emocional o conversacional

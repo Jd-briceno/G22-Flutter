@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:melodymuse/pages/music_detail_screen.dart';
@@ -153,6 +155,18 @@ class _PlaylistScreenState extends State<PlaylistScreen>
             'load_time_ms': loadTime,
           },
         );
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          await FirebaseFirestore.instance
+              .collection('playlist_load_events')
+              .add({
+            'userId': user.uid,
+            'genre': widget.genre,
+            'loadTimeMs': loadTime,
+            'timestamp': DateTime.now(),
+          });
+        }
+
       }
     } catch (e, st) {
       print("⚠️ Error cargando playlist: $e\n$st");

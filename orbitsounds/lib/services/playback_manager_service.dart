@@ -22,6 +22,9 @@ class PlaybackManagerService with ChangeNotifier {
   Duration _position = Duration.zero;
   bool _isPlaying = false;
   String _genre = "";
+  bool _isSimulated = false;
+  Timer? _simulatedTimer;
+
   StreamSubscription<Duration>? _positionSub;
   StreamSubscription<PlayerState>? _playerStateSub;
 
@@ -57,7 +60,6 @@ class PlaybackManagerService with ChangeNotifier {
 
     _goalTracker.startTracking(_genre);
 
-    // registra canción para repeat/análisis
     final now = DateTime.now();
     if (_lastSongId == track.title) {
       final diff = now.difference(_lastSongStartTime ?? now).inSeconds;
@@ -78,7 +80,9 @@ class PlaybackManagerService with ChangeNotifier {
     _lastSongId = track.title;
     _lastSongStartTime = now;
 
-    // cargar previewUrl si existe
+    _isSimulated = false;
+    _simulatedTimer?.cancel();
+
     if (track.previewUrl != null && track.previewUrl!.isNotEmpty) {
       try {
         await _audioPlayer.setUrl(track.previewUrl!);
@@ -87,46 +91,35 @@ class PlaybackManagerService with ChangeNotifier {
         print("⚠️ Error al cargar la preview URL: $e");
       }
 
-      // escuchamos posición
       _positionSub?.cancel();
       _positionSub = _audioPlayer.positionStream.listen((pos) {
         _position = pos;
         notifyListeners();
       });
 
-      // escuchamos estado de finalización
       _playerStateSub?.cancel();
       _playerStateSub = _audioPlayer.playerStateStream.listen((state) {
         if (state.processingState == ProcessingState.completed) {
-          // track terminó
           _onTrackComplete();
         }
       });
     } else {
-      // no preview: podrías decidir avanzar inmediatamente o sólo marcar como reproducible
-      print("⚠️ Track sin preview URL: ${track.title}");
-      // avanzar tras «duración estimada» o salto inmediato:
-      Future.delayed(Duration(milliseconds: track.durationMs > 0 ? track.durationMs : 30000),
-        () => _onTrackComplete());
+      _isSimulated = true;
+      final duration = Duration(milliseconds: track.durationMs > 0 ? track.durationMs : 30000);
+      _simulatedTimer = Timer(duration, _onTrackComplete);
     }
-  }
-
-  Future<void> _onTrackComplete() async {
-    final track = currentTrack;
-    if (track == null) return;
-
-    await _goalTracker.registerSongPlayed(_genre);
-    // reiniciar estado
-    _position = Duration.zero;
-    notifyListeners();
-
-    next();
   }
 
   Future<void> pause() async {
     if (_isPlaying) {
       _isPlaying = false;
-      await _audioPlayer.pause();
+
+      if (_isSimulated) {
+        _simulatedTimer?.cancel();
+      } else {
+        await _audioPlayer.pause();
+      }
+
       _positionSub?.cancel();
       _playerStateSub?.cancel();
       _goalTracker.stopTracking();
@@ -152,6 +145,8 @@ class PlaybackManagerService with ChangeNotifier {
   Future<void> stop() async {
     _isPlaying = false;
     _position = Duration.zero;
+    _isSimulated = false;
+    _simulatedTimer?.cancel();
     await _audioPlayer.stop();
     _positionSub?.cancel();
     _playerStateSub?.cancel();
@@ -209,6 +204,17 @@ class PlaybackManagerService with ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> _onTrackComplete() async {
+    final track = currentTrack;
+    if (track == null) return;
+
+    await _goalTracker.registerSongPlayed(_genre);
+    _position = Duration.zero;
+    notifyListeners();
+
+    next();
+  }
+
   Future<void> _registerSessionInFirestore(int durationSeconds) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -257,6 +263,7 @@ class PlaybackManagerService with ChangeNotifier {
   void dispose() {
     _positionSub?.cancel();
     _playerStateSub?.cancel();
+    _simulatedTimer?.cancel();
     _audioPlayer.dispose();
     super.dispose();
   }

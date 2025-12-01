@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:heroicons/heroicons.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
@@ -27,6 +28,15 @@ class _AresRecommendationsScreenState extends State<AresRecommendationsScreen> {
   List<String> _likedGenres = [];
   List<String> _interests = [];
 
+  Future<bool> hasInternetConnection() async {
+    try {
+      final result = await InternetAddress.lookup('example.com');
+      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _generatePlaylist() async {
     await _progressSub?.cancel();
 
@@ -40,10 +50,32 @@ class _AresRecommendationsScreenState extends State<AresRecommendationsScreen> {
     });
 
     try {
+      final online = await hasInternetConnection();
+
+      if (!online) {
+        debugPrint("📴 No internet. Trying cache...");
+        final cached = await _ares.getCachedPlaylist(); // 👈 Debes tener esto
+        if (cached != null) {
+          setState(() {
+            _playlist = cached;
+            _loading = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("📴 No internet. Loaded cached ARES playlist."),
+              backgroundColor: Colors.orangeAccent,
+            ),
+          );
+          return;
+        } else {
+          throw Exception("No internet and no cached playlist available.");
+        }
+      }
+
+      // 🔹 Continúa con la generación normal
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) throw Exception("User not authenticated");
 
-      // 🔹 Obtener documento del usuario
       final userDoc =
           await FirebaseFirestore.instance.collection('users').doc(uid).get();
       if (!userDoc.exists) throw Exception("User document not found");
@@ -51,7 +83,6 @@ class _AresRecommendationsScreenState extends State<AresRecommendationsScreen> {
       final userData = userDoc.data()!;
       _interests = List<String>.from(userData['interests'] ?? []);
 
-      // 🔹 Liked Songs
       final likedSongsSnap = await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
@@ -64,7 +95,6 @@ class _AresRecommendationsScreenState extends State<AresRecommendationsScreen> {
           .where((title) => title.isNotEmpty)
           .toList();
 
-      // 🔹 Favorite Genres (achieved == true)
       final goalsSnap = await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
@@ -77,7 +107,6 @@ class _AresRecommendationsScreenState extends State<AresRecommendationsScreen> {
           .where((g) => g.isNotEmpty)
           .toList();
 
-      // 🔹 Generar playlist personalizada
       final playlist = await _ares.generatePersonalizedPlaylist(
         likedGenres: _likedGenres,
         likedSongs: _likedSongs,
@@ -88,6 +117,9 @@ class _AresRecommendationsScreenState extends State<AresRecommendationsScreen> {
       setState(() {
         _playlist = playlist;
       });
+
+      // ✅ Guarda cache
+      await _ares.cachePlaylist(playlist!);
 
       await analytics.logEvent(
         name: 'ares_playlist_generated',

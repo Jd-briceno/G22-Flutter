@@ -1,8 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:melodymuse/cache/ares_playlist_cache.dart';
 import 'package:melodymuse/components/vinyl_cover.dart';
+import 'package:melodymuse/models/playlist_model.dart';
 import 'package:melodymuse/pages/ares_recommendations_screen.dart';
 import 'package:melodymuse/pages/ares_playlist_screen.dart';
 import '../components/search_bar.dart';
@@ -106,6 +109,21 @@ class _LibraryScreenState extends State<LibraryScreen>
     try {
       final mixes = await _ares.generateSmartMixesFromFirestore();
       setState(() => _aresPlaylists = mixes);
+
+      // NUEVO → guardar cada playlist en el LRU
+      for (var mix in mixes) {
+        final playlist = Playlist(
+          id: mix['id'] ?? DateTime.now().millisecondsSinceEpoch.toString(),
+          title: mix['title'] ?? 'Untitled',
+          description: mix['description'] ?? '',
+          coverUrl: mix['coverUrl'] ?? '',
+          tracks: (mix['tracks'] as List<dynamic>? ?? [])
+              .map((t) => Track.fromMap(Map<String, dynamic>.from(t)))
+              .toList(),
+        );
+
+        await AresPlaylistCache.save(playlist);
+      }
     } catch (e) {
       debugPrint("⚠️ Error generando Smart Mixes: $e");
     } finally {
@@ -128,6 +146,15 @@ class _LibraryScreenState extends State<LibraryScreen>
       );
     } finally {
       setState(() => _loading = false);
+    }
+  }
+
+  Future<bool> _hasInternetConnection() async {
+    try {
+      final result = await InternetAddress.lookup('example.com');
+      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -206,56 +233,38 @@ class _LibraryScreenState extends State<LibraryScreen>
 
           // 💫 Smart Mixes de Ares
           if (_loadingAresMixes)
-            const SliverToBoxAdapter(
-              child: Center(
-                child: Padding(
-                  padding: EdgeInsets.all(20),
-                  child: CircularProgressIndicator(color: Color(0xFFE9E8EE)),
-                ),
-              ),
-            )
-          else if (_aresPlaylists.isNotEmpty)
-            _AresPlaylistSection(playlists: _aresPlaylists),
-
-          // 📂 Library normal
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text("Library", style: _sectionTitleStyle),
-                  Row(
-                    children: [
-                      IconButton(
-                        onPressed: () async {
-                          final newPlaylist = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const AresRecommendationsScreen(),
-                            ),
-                          );
-                          if (newPlaylist != null) {
-                            debugPrint("Nueva playlist creada: ${newPlaylist.title}");
-                          }
-                        },
-                        icon: const HeroIcon(
-                          HeroIcons.plusCircle,
-                          color: Color(0XFFE9E8EE),
-                          size: 28,
-                        ),
-                      ),
-                      const HeroIcon(
-                        HeroIcons.ellipsisVertical,
-                        color: Color(0XFFE9E8EE),
-                        size: 28,
-                      ),
-                    ],
-                  ),
-                ],
+          const SliverToBoxAdapter(
+            child: Center(
+              child: Padding(
+                padding: EdgeInsets.all(20),
+                child: CircularProgressIndicator(color: Color(0xFFE9E8EE)),
               ),
             ),
+          )
+        else if (_aresPlaylists.isNotEmpty)
+          _AresPlaylistSection(playlists: _aresPlaylists)
+        else
+          FutureBuilder<bool>(
+            future: _hasInternetConnection(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const SliverToBoxAdapter(child: SizedBox());
+              }
+              if (snapshot.data == false) {
+                return const CachedMixesSection(); // 👉 Sin internet, mostrar cache
+              }
+              return const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Text(
+                    "⚠️ No mixes available and failed to load new ones.",
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              );
+            },
           ),
+
 
           // 📀 Playlists manuales
           _PlaylistSection(title: "✨ Starlight Suggestions", playlists: _myPlaylists),
@@ -330,25 +339,7 @@ class _AresPlaylistSection extends StatelessWidget {
                     },
                     child: Column(
                       children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: CachedNetworkImage(
-                            imageUrl: coverUrl,
-                            width: 120,
-                            height: 120,
-                            fit: BoxFit.cover,
-                            placeholder: (_, __) => const Center(
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Color(0xFFE9E8EE),
-                              ),
-                            ),
-                            errorWidget: (_, __, ___) => const Icon(
-                              Icons.music_note,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
+                        SafeCoverImage(imageUrl: coverUrl),
                         const SizedBox(height: 6),
                         SizedBox(
                           width: 120,
@@ -484,3 +475,128 @@ class _PlaylistSection extends StatelessWidget {
     );
   }
 }
+
+class CachedMixesSection extends StatelessWidget {
+  const CachedMixesSection({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<Playlist>>(
+      future: AresPlaylistCache.getAll(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SliverToBoxAdapter(
+            child: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final mixes = snapshot.data ?? [];
+        if (mixes.isEmpty) {
+          return const SliverToBoxAdapter(child: SizedBox());
+        }
+
+        return SliverToBoxAdapter(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: Text(
+                  "🗂️ Offline Smart Mixes",
+                  style: _LibraryScreenState._sectionTitleStyle,
+                ),
+              ),
+              SizedBox(
+                height: 180,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: mixes.length,
+                  itemBuilder: (context, index) {
+                    final mix = mixes[index];
+                    final cover = mix.coverUrl.isNotEmpty
+                        ? mix.coverUrl
+                        : "assets/images/default_mix.jpg";
+
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => AresPlaylistScreen(
+                                title: mix.title,
+                                description: mix.description,
+                                coverUrl: cover,
+                                tracks: mix.tracks.map((t) => t.toMap()).toList(),
+                              ),
+                            ),
+                          );
+                        },
+                        child: Column(
+                          children: [
+                            SafeCoverImage(imageUrl: cover),
+                            const SizedBox(height: 6),
+                            SizedBox(
+                              width: 120,
+                              child: Text(
+                                mix.title,
+                                style: _LibraryScreenState._playlistTitleStyle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class SafeCoverImage extends StatelessWidget {
+  final String imageUrl;
+  final double size;
+
+  const SafeCoverImage({
+    required this.imageUrl,
+    this.size = 120,
+    super.key,
+  });
+
+  bool get _isNetwork => imageUrl.startsWith("http");
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: _isNetwork
+          ? CachedNetworkImage(
+              imageUrl: imageUrl,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              placeholder: (_, __) => const Center(
+                child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFE9E8EE)),
+              ),
+              errorWidget: (_, __, ___) => const Icon(Icons.music_note, color: Colors.white),
+            )
+          : Image.asset(
+              imageUrl,
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+            ),
+    );
+  }
+}
+
+

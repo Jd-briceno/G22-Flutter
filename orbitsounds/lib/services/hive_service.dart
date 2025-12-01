@@ -53,4 +53,24 @@ class HiveService {
       await trackCacheBox.delete(key);
     }
   }
+
+  static Future<void> saveLastAresMix(String cacheKey, List<Map<String, dynamic>> tracks) async {
+    await trackCacheBox.put('ares_mix_$cacheKey', tracks);
+  }
+
+  static List<Map<String, dynamic>>? getLastAresMix(String cacheKey) {
+    final cached = trackCacheBox.get('ares_mix_$cacheKey');
+    if (cached != null) {
+      return List<Map<String, dynamic>>.from(cached);
+    }
+    return null;
+  }
+
+  // (opcional) limpiar cache de mixes Ares
+  static Future<void> clearAresMixCache() async {
+    final keys = trackCacheBox.keys.where((k) => k.toString().startsWith('ares_mix_')).toList();
+    for (var key in keys) {
+      await trackCacheBox.delete(key);
+    }
+  }
 }

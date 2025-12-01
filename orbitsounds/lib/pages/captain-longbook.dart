@@ -1,10 +1,10 @@
 import 'dart:math';
+import 'dart:async';
 
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:melodymuse/components/tonal_breathing_modal.dart';
 import 'package:melodymuse/pages/emotional_timeline_page.dart';
 import 'package:melodymuse/pages/mood_echo_page.dart';
-import 'package:melodymuse/services/sol_service.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -15,9 +15,10 @@ import 'package:heroicons/heroicons.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:melodymuse/pages/longbook_history_screen.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:melodymuse/constants/emotion_constants.dart';
+import '../cache/session_lru_cache.dart';
+import '../models/session_data.dart';
 
 
 import '../services/weather_service.dart';
@@ -149,6 +150,9 @@ final List<Emotion> _allEmotions = [
 
 class _LongbookState extends State<Longbook> {
   Future<Weather?>? _weatherFuture;
+  final StreamController<List<String>> _voiceNotesController = StreamController<List<String>>.broadcast();
+  Weather? _weather;
+  String? _weatherError;
   String? _latestConstellationEmotion;
   final FirebaseAnalytics analytics = FirebaseAnalytics.instance;
   double? _latestTrackBPM;
@@ -174,6 +178,7 @@ class _LongbookState extends State<Longbook> {
     _initNotifications();
     _initRecorder();
     _getWeatherWithLocation();
+    _tryLoadCachedSession(); // ⬅️ intentamos cache primero
     _loadLatestSessionEmotions();
     _loadLatestConstellationEmotion();
     _loadLatestSessionNotes(); // 🆕 Cargar notas si existen
@@ -183,6 +188,32 @@ class _LongbookState extends State<Longbook> {
   Future<void> _initNotifications() async {
     final notificationService = NotificationService();
     await notificationService.init();
+  }
+
+  Future<void> _tryLoadCachedSession() async {
+    final cached = await SessionCache.getLatest();
+    if (cached != null) {
+      debugPrint("⚡️ Cargando sesión desde cache local...");
+
+      setState(() {
+        _selectedEmotions = cached.selectedEmotions;
+        _notesController.text = cached.notes;
+        _voiceNotes.addAll(cached.voiceNotePaths);
+        _sessionAlbumArts = cached.albumArts;
+      });
+
+      // Igualmente intentamos cargar la versión online por si hay updates nuevos
+      _loadLatestSessionEmotions();
+      _loadLatestConstellationEmotion();
+      _loadLatestSessionNotes();
+      _loadLatestSessionTracks();
+    } else {
+      debugPrint("ℹ️ No hay cache disponible. Cargando desde Firestore...");
+      _loadLatestSessionEmotions();
+      _loadLatestConstellationEmotion();
+      _loadLatestSessionNotes();
+      _loadLatestSessionTracks();
+    }
   }
 
 
@@ -279,6 +310,15 @@ class _LongbookState extends State<Longbook> {
     } catch (e, st) {
       debugPrint("❌ Error cargando emociones de la última sesión: $e\n$st");
     }
+    await SessionCache.save(
+      SessionData(
+        selectedEmotions: _selectedEmotions,
+        notes: _notesController.text,
+        voiceNotePaths: _voiceNotes,
+        albumArts: _sessionAlbumArts,
+      ),
+    );
+
   }
 
   // 📝 Cargar notas de la última sesión si existen
@@ -417,6 +457,15 @@ class _LongbookState extends State<Longbook> {
     } catch (e) {
       debugPrint("❌ Error al cargar tracks de la sesión: $e");
     }
+
+    await SessionCache.save(
+      SessionData(
+        selectedEmotions: _selectedEmotions,
+        notes: _notesController.text,
+        voiceNotePaths: _voiceNotes,
+        albumArts: _sessionAlbumArts,
+      ),
+    );
   }
 
 
@@ -484,6 +533,7 @@ class _LongbookState extends State<Longbook> {
 
   @override
   void dispose() {
+    _voiceNotesController.close();
     _recorder.closeRecorder();
     _notesController.dispose();
     _audioPlayer.dispose();
@@ -529,7 +579,22 @@ class _LongbookState extends State<Longbook> {
     if (!mounted) return;
     setState(() {
       _weatherFuture =
-          WeatherService().fetchWeather(position.latitude, position.longitude);
+          WeatherService()
+          .fetchWeather(position.latitude, position.longitude)
+          .then((weather) {
+            if (!mounted) return;
+            setState(() {
+              _weather = weather;
+              _weatherError = null;
+            });
+          })
+          .catchError((err) {
+            if (!mounted) return;
+            setState(() {
+              _weather = null;
+              _weatherError = err.toString();
+            });
+          });
     });
   }
 
@@ -558,6 +623,7 @@ class _LongbookState extends State<Longbook> {
         _voiceNotes.add(path);
         _isRecording = false;
       });
+      _voiceNotesController.add(_voiceNotes); // 📡 emitimos la nueva lista
     }
   }
 
@@ -704,33 +770,17 @@ class _LongbookState extends State<Longbook> {
                       Positioned(
                         left: 85,
                         top: 395,
-                        child: FutureBuilder<Weather?>(
-                          future: _weatherFuture,
-                          builder: (context, snapshot) {
-                            if (snapshot.connectionState ==
-                                ConnectionState.waiting) {
-                              return const SizedBox(
-                                width: 129,
-                                height: 33,
-                                child: Center(
-                                  child:
-                                      CircularProgressIndicator(strokeWidth: 2),
-                                ),
-                              );
-                            } else if (!snapshot.hasData ||
-                                snapshot.data == null) {
-                              return const SizedBox(width: 129, height: 33);
-                            } else {
-                              final weather = snapshot.data!;
-                              final temp = weather.temperature.round();
+                        child: SizedBox(
+                          width: 129,
+                          height: 33,
+                          child: () {
+                            if (_weather != null) {
+                              final temp = _weather!.temperature.round();
                               return Container(
-                                width: 129,
-                                height: 33,
                                 decoration: BoxDecoration(
                                   color: const Color(0xFF010B19),
                                   borderRadius: BorderRadius.circular(16.5),
-                                  border: Border.all(
-                                      color: const Color(0xFFB4B1B8)),
+                                  border: Border.all(color: const Color(0xFFB4B1B8)),
                                 ),
                                 alignment: Alignment.center,
                                 child: Text(
@@ -743,8 +793,16 @@ class _LongbookState extends State<Longbook> {
                                   ),
                                 ),
                               );
+                            } else if (_weatherError != null) {
+                              return const Center(
+                                child: Text("Error", style: TextStyle(color: Colors.red)),
+                              );
+                            } else {
+                              return const Center(
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              );
                             }
-                          },
+                          }(),
                         ),
                       ),
 
@@ -809,8 +867,31 @@ class _LongbookState extends State<Longbook> {
                           },
                         ),
                       ),
-
-
+                      Positioned(
+                        left: 210,
+                        top: 30,
+                        child: IconButton(
+                          icon: const HeroIcon(HeroIcons.folderOpen,
+                              color: Color(0XFFE9E8EE),
+                              size: 50,
+                              style: HeroIconStyle.outline),
+                          onPressed: () {
+                            final user = FirebaseAuth.instance.currentUser;
+                            if (user != null) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => MoodEchoPage(),
+                                ),
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text("Inicia sesión para ver tu historial")),
+                              );
+                            }
+                          },
+                        ),
+                      ),
                       Positioned(
                         left: 300,
                         top: 30,
@@ -825,7 +906,7 @@ class _LongbookState extends State<Longbook> {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => MoodEchoPage(),
+                                  builder: (context) => EmotionalTimelinePage(),
                                 ),
                               );
                             } else {
@@ -952,10 +1033,10 @@ class _LongbookState extends State<Longbook> {
                       children: [
                         SvgPicture.string(
                           '''
-                <svg width="400" height="40" viewBox="0 0 400 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="69" y="4" width="313" height="32" fill="#010B19"/>
-                <rect x="0.5" y="0.5" width="399" height="39" rx="19.5" stroke="#B4B1B8"/>
-                </svg>
+                          <svg width="400" height="40" viewBox="0 0 400 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <rect x="69" y="4" width="313" height="32" fill="#010B19"/>
+                          <rect x="0.5" y="0.5" width="399" height="39" rx="19.5" stroke="#B4B1B8"/>
+                          </svg>
                           ''',
                           allowDrawingOutsideViewBox: true,
                         ),
@@ -978,7 +1059,7 @@ class _LongbookState extends State<Longbook> {
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
                               color: Color(0XFFE9E8EE),
-                              fontFamily: 'RobotoMono'
+                              fontFamily: 'RobotoMono',
                             ),
                           ),
                         ),
@@ -986,6 +1067,46 @@ class _LongbookState extends State<Longbook> {
                     ),
                   ),
                 ),
+
+                const SizedBox(height: 10), // separación visual
+
+                /// 🔊 StreamBuilder para mostrar notas de voz grabadas
+                StreamBuilder<List<String>>(
+                  stream: _voiceNotesController.stream,
+                  initialData: _voiceNotes,
+                  builder: (context, snapshot) {
+                    final notes = snapshot.data ?? [];
+                    if (notes.isEmpty) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16.0),
+                        child: Text(
+                          "No tienes notas de voz guardadas",
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontFamily: 'RobotoMono',
+                            fontSize: 14,
+                          ),
+                        ),
+                      );
+                    }
+                    return Column(
+                      children: notes.map((path) {
+                        return ListTile(
+                          leading: const Icon(Icons.play_arrow, color: Colors.white),
+                          title: Text(
+                            path.split('/').last,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontFamily: 'RobotoMono',
+                            ),
+                          ),
+                          onTap: () => _audioPlayer.play(DeviceFileSource(path)),
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
+
 
 
                 // === BLOQUE 4: Ondas dinámicas según emociones ===

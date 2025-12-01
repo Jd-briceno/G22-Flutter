@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -6,6 +7,17 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../components/navbar.dart';
 import '../pages/celestial_signal.dart';
 import '../services/sol_service.dart'; // ☀️ Servicio de análisis emocional
+
+// ==========================================================
+// 📡 STREAM RESULT MODEL
+// ==========================================================
+class SolResult {
+  final bool loading;
+  final Map<String, dynamic>? data;
+  final String? error;
+
+  SolResult({this.loading = false, this.data, this.error});
+}
 
 class EmotionalTimelinePage extends StatefulWidget {
   const EmotionalTimelinePage({super.key});
@@ -17,9 +29,9 @@ class EmotionalTimelinePage extends StatefulWidget {
 class _EmotionalTimelinePageState extends State<EmotionalTimelinePage>
     with SingleTickerProviderStateMixin {
   bool _loading = true;
-  bool _solLoading = false;
   List<Map<String, dynamic>> _sessions = [];
-  Map<String, dynamic>? _solResponse;
+
+  late StreamController<SolResult> _solStreamController;
 
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
@@ -27,21 +39,31 @@ class _EmotionalTimelinePageState extends State<EmotionalTimelinePage>
   @override
   void initState() {
     super.initState();
-    _fadeController =
-        AnimationController(vsync: this, duration: const Duration(seconds: 1));
-    _fadeAnimation =
-        CurvedAnimation(parent: _fadeController, curve: Curves.easeIn);
+
+    _solStreamController = StreamController<SolResult>.broadcast();
+
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    );
+
+    _fadeAnimation = CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeIn,
+    );
+
     _fetchRecentSessions();
   }
 
   @override
   void dispose() {
     _fadeController.dispose();
+    _solStreamController.close();
     super.dispose();
   }
 
   // ==========================================================
-  // 🪐 Carga de las últimas 7 sesiones
+  // 🪐 Cargar últimas 7 sesiones
   // ==========================================================
   Future<void> _fetchRecentSessions() async {
     try {
@@ -76,9 +98,7 @@ class _EmotionalTimelinePageState extends State<EmotionalTimelinePage>
         _loading = false;
       });
 
-      if (_sessions.isNotEmpty) {
-        await _analyzeWithSol();
-      }
+      if (_sessions.isNotEmpty) _analyzeWithSol();
     } catch (e) {
       print("❌ Error cargando sesiones: $e");
       setState(() => _loading = false);
@@ -86,13 +106,10 @@ class _EmotionalTimelinePageState extends State<EmotionalTimelinePage>
   }
 
   // ==========================================================
-  // ☀️ Llamada a SOL
+  // ☀️ Llamada a SOL usando STREAM
   // ==========================================================
   Future<void> _analyzeWithSol() async {
-    setState(() {
-      _solLoading = true;
-      _solResponse = null; // 🔥 limpiar mensaje anterior
-    });
+    _solStreamController.add(SolResult(loading: true));
 
     try {
       final emotions = _sessions
@@ -100,26 +117,44 @@ class _EmotionalTimelinePageState extends State<EmotionalTimelinePage>
           .where((e) => e != "Unknown")
           .toList();
 
-      if (emotions.isEmpty) return;
+      if (emotions.isEmpty) {
+        _solStreamController.add(SolResult(error: "No emotions to analyse."));
+        return;
+      }
 
       final sol = SolService();
       final response = await sol.analyzeWeeklyEmotions(emotions: emotions);
 
-      if (!mounted) return;
-      setState(() {
-        _solResponse = response;
-        _solLoading = false;
-      });
+      await sol.cacheLastSolResponse(response);
 
+      _solStreamController.add(SolResult(data: response));
       _fadeController.forward(from: 0.0);
     } catch (e) {
-      print("❌ Error analizando con SOL: $e");
-      setState(() => _solLoading = false);
+      final sol = SolService();
+      final fallback = await sol.getLastSolResponse();
+
+      if (fallback != null) {
+        _solStreamController.add(SolResult(data: fallback));
+        _fadeController.forward(from: 0.0);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("📴 Offline: showing last saved reflection."),
+              backgroundColor: Colors.orangeAccent,
+            ),
+          );
+        }
+      } else {
+        _solStreamController.add(
+          SolResult(error: "❌ No internet and no saved reflection available."),
+        );
+      }
     }
   }
 
   // ==========================================================
-  // 🎨 Determinar color / imagen según emoción
+  // 🎨 Visual cosmic data
   // ==========================================================
   Map<String, dynamic> _getConstellationVisual(String emotion) {
     for (var entry in constellationInfo.entries) {
@@ -128,16 +163,13 @@ class _EmotionalTimelinePageState extends State<EmotionalTimelinePage>
         final name = entry.value["name"].toString().split("\n")[0];
         final color = constellationColors[name] ?? Colors.white;
 
-        String? imagePath;
-        if (key.contains("_")) {
-          imagePath = pairImages[key];
-        } else {
-          imagePath = individualImages[int.tryParse(key) ?? 0];
-        }
+        String? imagePath =
+            key.contains("_") ? pairImages[key] : individualImages[int.tryParse(key) ?? 0];
 
         return {"color": color, "image": imagePath, "name": name};
       }
     }
+
     return {
       "color": Colors.white,
       "image": "assets/images/constellation.png",
@@ -153,15 +185,14 @@ class _EmotionalTimelinePageState extends State<EmotionalTimelinePage>
     final lastEmotion = _sessions.isNotEmpty
         ? _sessions.last["constellationEmotion"] ?? "Unknown"
         : "Unknown";
+
     final visual = _getConstellationVisual(lastEmotion);
 
     return Scaffold(
       backgroundColor: const Color(0xFF010B19),
       body: SafeArea(
         child: _loading
-            ? const Center(
-                child: CircularProgressIndicator(color: Colors.white),
-              )
+            ? const Center(child: CircularProgressIndicator(color: Colors.white))
             : _sessions.isEmpty
                 ? const Center(
                     child: Text(
@@ -172,7 +203,6 @@ class _EmotionalTimelinePageState extends State<EmotionalTimelinePage>
                 : SingleChildScrollView(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         const SizedBox(height: 10),
                         const Navbar(
@@ -191,9 +221,12 @@ class _EmotionalTimelinePageState extends State<EmotionalTimelinePage>
                             fontWeight: FontWeight.bold,
                           ),
                         ),
+
                         const SizedBox(height: 20),
 
+                        // ==========================================================
                         // 🌌 Timeline cósmica
+                        // ==========================================================
                         SizedBox(
                           height: 150,
                           child: ListView.separated(
@@ -203,13 +236,11 @@ class _EmotionalTimelinePageState extends State<EmotionalTimelinePage>
                             itemBuilder: (context, index) {
                               final session = _sessions[index];
                               final date = session["timestamp"] as DateTime?;
-                              final emotion =
-                                  session["constellationEmotion"] ?? "Unknown";
+                              final emotion = session["constellationEmotion"] ?? "Unknown";
                               final v = _getConstellationVisual(emotion);
 
-                              final formatted = date != null
-                                  ? DateFormat('EEE').format(date)
-                                  : "Day";
+                              final formatted =
+                                  date != null ? DateFormat('EEE').format(date) : "Day";
 
                               return Column(
                                 children: [
@@ -225,10 +256,7 @@ class _EmotionalTimelinePageState extends State<EmotionalTimelinePage>
                                     decoration: BoxDecoration(
                                       color: v["color"].withOpacity(0.1),
                                       shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: v["color"],
-                                        width: 1.4,
-                                      ),
+                                      border: Border.all(color: v["color"], width: 1.4),
                                       boxShadow: [
                                         BoxShadow(
                                           color: v["color"].withOpacity(0.5),
@@ -259,83 +287,104 @@ class _EmotionalTimelinePageState extends State<EmotionalTimelinePage>
                           ),
                         ),
 
-                        const SizedBox(height: 0),
+                        const SizedBox(height: 10),
 
-                        // ☀️ Estado de carga o mensaje final
-                        if (_solLoading)
-                          Column(
-                            children: [
-                              const SizedBox(height: 8),
-                              const CircularProgressIndicator(
-                                  color: Colors.white),
-                              const SizedBox(height: 14),
-                              Text(
-                                "Loading your weekly reflection...",
-                                style: GoogleFonts.encodeSansExpanded(
-                                  color: Colors.white70,
-                                  fontSize: 13,
-                                  fontStyle: FontStyle.italic,
-                                ),
-                              ),
-                            ],
-                          )
-                        else if (_solResponse != null)
-                          FadeTransition(
-                            opacity: _fadeAnimation,
-                            child: Transform.translate(
-                              offset: const Offset(0, 10),
-                              child: Container(
-                                margin: const EdgeInsets.only(bottom: 20),
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: visual["color"].withOpacity(0.08),
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
-                                    color: visual["color"],
-                                    width: 1.3,
+                        // ==========================================================
+                        // ☀️ STREAMBUILDER (Resumen emocional)
+                        // ==========================================================
+                        StreamBuilder<SolResult>(
+                          stream: _solStreamController.stream,
+                          builder: (context, snapshot) {
+                            final result = snapshot.data;
+
+                            if (result == null || result.loading) {
+                              return Column(
+                                children: [
+                                  const SizedBox(height: 8),
+                                  const CircularProgressIndicator(color: Colors.white),
+                                  const SizedBox(height: 14),
+                                  Text(
+                                    "Loading your weekly reflection...",
+                                    style: GoogleFonts.encodeSansExpanded(
+                                      color: Colors.white70,
+                                      fontSize: 13,
+                                      fontStyle: FontStyle.italic,
+                                    ),
                                   ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: visual["color"].withOpacity(0.35),
-                                      blurRadius: 10,
-                                      spreadRadius: 1,
-                                    ),
-                                  ],
+                                ],
+                              );
+                            }
+
+                            if (result.error != null) {
+                              return Text(
+                                result.error!,
+                                style: GoogleFonts.robotoMono(
+                                  color: Colors.redAccent,
+                                  fontSize: 12,
                                 ),
-                                child: Column(
-                                  children: [
-                                    Text(
-                                      "Weekly Reflection",
-                                      style: GoogleFonts.encodeSansExpanded(
-                                        color: visual["color"],
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                                textAlign: TextAlign.center,
+                              );
+                            }
+
+                            final response = result.data!;
+                            return FadeTransition(
+                              opacity: _fadeAnimation,
+                              child: Transform.translate(
+                                offset: const Offset(0, 10),
+                                child: Container(
+                                  margin: const EdgeInsets.only(bottom: 20),
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: visual["color"].withOpacity(0.08),
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(
+                                      color: visual["color"],
+                                      width: 1.3,
                                     ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      _solResponse?["summary"] ?? "",
-                                      style: GoogleFonts.robotoMono(
-                                        color: Colors.white,
-                                        fontSize: 12,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: visual["color"].withOpacity(0.35),
+                                        blurRadius: 10,
+                                        spreadRadius: 1,
                                       ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                    const SizedBox(height: 10),
-                                    Text(
-                                      _solResponse?["reflection"] ?? "",
-                                      style: GoogleFonts.robotoMono(
-                                        color: visual["color"],
-                                        fontSize: 12,
-                                        fontStyle: FontStyle.italic,
+                                    ],
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      Text(
+                                        "Weekly Reflection",
+                                        style: GoogleFonts.encodeSansExpanded(
+                                          color: visual["color"],
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ],
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        response["summary"] ?? "",
+                                        style: GoogleFonts.robotoMono(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Text(
+                                        response["reflection"] ?? "",
+                                        style: GoogleFonts.robotoMono(
+                                          color: visual["color"],
+                                          fontSize: 12,
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ),
-                          ),
+                            );
+                          },
+                        ),
                       ],
                     ),
                   ),
