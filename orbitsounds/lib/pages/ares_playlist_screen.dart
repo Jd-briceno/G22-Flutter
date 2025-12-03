@@ -1,4 +1,4 @@
-ares_playlist_screen: import 'dart:io';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -186,6 +186,10 @@ class _AresPlaylistScreenState extends State<AresPlaylistScreen> {
             child: CachedNetworkImage(
               imageUrl: widget.coverUrl,
               fit: BoxFit.cover,
+              errorWidget: (_, __, ___) => Image.asset(
+                "assets/images/default_mix.jpg",
+                fit: BoxFit.cover,
+              ),
             ),
           ),
           Container(color: Colors.black.withOpacity(0.8)),
@@ -227,6 +231,12 @@ class _AresPlaylistScreenState extends State<AresPlaylistScreen> {
                     width: 180,
                     height: 180,
                     fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) => Image.asset(
+                      "assets/images/default_mix.jpg",
+                      width: 180,
+                      height: 180,
+                      fit: BoxFit.cover,
+                    ),
                   ),
                 ),
 

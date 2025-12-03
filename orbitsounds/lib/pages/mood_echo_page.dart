@@ -1,7 +1,11 @@
+// mood_echo_page.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart'; // para compute()
+import '../cache/mood_echo_cache.dart';
 import '../services/mood_echo_service.dart';
 
 class MoodEchoPage extends StatefulWidget {
@@ -18,6 +22,10 @@ class _MoodEchoPageState extends State<MoodEchoPage>
   bool _loading = true;
   bool _generating = false;
 
+  // Stream para emitir cambios en moodEcho
+  final StreamController<Map<String, dynamic>?> _echoStreamController =
+      StreamController.broadcast();
+
   late AnimationController _fadeController;
   late Animation<double> _fadeAnim;
 
@@ -27,20 +35,37 @@ class _MoodEchoPageState extends State<MoodEchoPage>
     _fadeController =
         AnimationController(vsync: this, duration: const Duration(seconds: 1));
     _fadeAnim = CurvedAnimation(parent: _fadeController, curve: Curves.easeIn);
+
     _loadMoodEcho();
+  }
+
+  @override
+  void dispose() {
+    _echoStreamController.close();
+    _fadeController.dispose();
+    super.dispose();
+  }
+
+  // Función para procesar el Map en un isolate (compute)
+  static Map<String, dynamic> _processMoodEcho(Map<String, dynamic> raw) {
+    // Aquí puedes realizar validaciones, normalizaciones, filtrados, etc.
+    return Map<String, dynamic>.from(raw);
   }
 
   Future<void> _loadMoodEcho() async {
     setState(() => _loading = true);
+
+    Map<String, dynamic>? loadedEcho;
+
     try {
-      final uid = FirebaseAuth.instance.currentUser!.uid;
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) throw Exception("User not authenticated");
+
       final firestore = FirebaseFirestore.instance;
 
-      // Obtener perfil
       final userDoc = await firestore.collection("users").doc(uid).get();
       userData = userDoc.data();
 
-      // Última sesión
       final sessionSnap = await firestore
           .collection("users")
           .doc(uid)
@@ -49,29 +74,53 @@ class _MoodEchoPageState extends State<MoodEchoPage>
           .limit(1)
           .get();
 
-      if (sessionSnap.docs.isEmpty) {
-        setState(() => _loading = false);
-        return;
+      if (sessionSnap.docs.isNotEmpty) {
+        final data = sessionSnap.docs.first.data();
+        final rawEcho = data["mood_echo"] as Map<String, dynamic>?;
+        if (rawEcho != null) {
+          // Procesamos en isolate
+          final processed = await compute(_processMoodEcho, rawEcho);
+          loadedEcho = processed;
+          await MoodEchoCache.save(processed); // guardamos en cache LRU
+        }
       }
 
-      final data = sessionSnap.docs.first.data();
-      moodEcho = data["mood_echo"];
-
-      setState(() => _loading = false);
-      _fadeController.forward(from: 0);
+      if (loadedEcho == null) {
+        // Si no conseguimos desde red / Firestore, intentamos desde cache
+        final cached = await MoodEchoCache.getLatest();
+        if (cached != null) {
+          loadedEcho = cached;
+        }
+      }
     } catch (e) {
-      debugPrint("⚠️ Error cargando Mood Echo: $e");
-      setState(() => _loading = false);
+      debugPrint("⚠️ Error loading MoodEcho: $e");
+      // On error, fallback a cache
+      final cached = await MoodEchoCache.getLatest();
+      if (cached != null) {
+        loadedEcho = cached;
+      }
     }
+
+    moodEcho = loadedEcho;
+    _echoStreamController.add(moodEcho);
+
+    setState(() => _loading = false);
+    _fadeController.forward(from: 0);
   }
 
   Future<void> _regenerate() async {
     setState(() => _generating = true);
-    final generator = MoodEchoService();
-    await generator.generateMoodEcho();
-    await Future.delayed(const Duration(seconds: 2));
-    await _loadMoodEcho();
-    setState(() => _generating = false);
+    try {
+      await MoodEchoService().generateMoodEcho();
+      // Espera breve por si hay delay
+      await Future.delayed(const Duration(seconds: 1));
+      await _loadMoodEcho();
+    } catch (e) {
+      debugPrint("Error regenerating MoodEcho: $e");
+      // Podés mostrar SnackBar de error aquí si quieres
+    } finally {
+      setState(() => _generating = false);
+    }
   }
 
   // 🎨 Genera un color adaptativo según país y alignment_score
@@ -137,16 +186,8 @@ class _MoodEchoPageState extends State<MoodEchoPage>
     return Color.lerp(Colors.indigo, Colors.cyanAccent, score)!;
   }
 
-
   @override
   Widget build(BuildContext context) {
-    final nationality = userData?["nationality"]?["name"] ?? "Unknown";
-    final flag = userData?["nationality"]?["flag"] ?? "";
-    final nickname = userData?["nickname"] ?? "Traveler";
-    final score = (moodEcho?["alignment_score"] ?? 0.0).toDouble();
-    final tone = moodEcho?["musical_tone"] ?? "neutral";
-    final moodColor = _getMoodColor(tone, score);
-
     return Scaffold(
       body: AnimatedContainer(
         duration: const Duration(seconds: 3),
@@ -156,45 +197,74 @@ class _MoodEchoPageState extends State<MoodEchoPage>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              moodColor.withOpacity(0.45),
+              (() {
+                final tone = moodEcho?["musical_tone"] ?? "neutral";
+                final score = (moodEcho?["alignment_score"] ?? 0.0).toDouble();
+                return _getMoodColor(tone, score).withOpacity(0.45);
+              })(),
               Colors.black.withOpacity(0.95),
             ],
           ),
         ),
         child: SafeArea(
-          child: _loading
-              ? const Center(
+          child: StreamBuilder<Map<String, dynamic>?>(
+            stream: _echoStreamController.stream,
+            builder: (context, snapshot) {
+              if (_loading) {
+                return const Center(
                   child: CircularProgressIndicator(color: Colors.white),
-                )
-              : moodEcho == null
-                  ? _buildEmptyState()
-                  : FadeTransition(
-                      opacity: _fadeAnim,
-                      child: _buildContent(nickname, nationality, flag),
-                    ),
+                );
+              }
+
+              final echo = snapshot.data;
+              if (echo == null) {
+                return _buildEmptyState();
+              }
+
+              final nationality = userData?["nationality"]?["name"] ?? "Unknown";
+              final flag = userData?["nationality"]?["flag"] ?? "";
+              final nickname = userData?["nickname"] ?? "Traveler";
+              final score = (echo["alignment_score"] ?? 0.0).toDouble();
+              final tone = echo["musical_tone"] ?? "neutral";
+              final moodColor = _getMoodColor(tone, score);
+              final contentColor = _getThemeColor(score, nationality);
+
+              return FadeTransition(
+                opacity: _fadeAnim,
+                child: _buildContent(
+                  echo,
+                  nickname,
+                  nationality,
+                  flag,
+                  moodColor,
+                  contentColor,
+                ),
+              );
+            },
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildContent(String nickname, String nationality, String flag) {
-    final score = (moodEcho?["alignment_score"] ?? 0.0).toDouble();
-    final color = _getThemeColor(score, nationality);
-    final tone = (moodEcho?["musical_tone"] ?? "neutral").toUpperCase();
+  Widget _buildContent(Map<String, dynamic> echo, String nickname,
+      String nationality, String flag, Color moodColor, Color contentColor) {
+    final summary = echo["summary"] ?? "";
+    final reflection = echo["reflection"] ?? "";
+    final tone = (echo["musical_tone"] ?? "neutral").toString().toUpperCase();
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 25),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // 🌙 Header
           Text(
             "Letter from SOL ☀️",
             style: TextStyle(
               fontFamily: 'EncodeSansExpanded',
               fontWeight: FontWeight.bold,
               fontSize: 22,
-              color: color,
+              color: contentColor,
             ),
             textAlign: TextAlign.center,
           ),
@@ -208,18 +278,16 @@ class _MoodEchoPageState extends State<MoodEchoPage>
             ),
           ),
           const SizedBox(height: 25),
-
-          // 💌 Carta
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(22),
             decoration: BoxDecoration(
               color: Colors.black.withOpacity(0.3),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: color, width: 1.3),
+              border: Border.all(color: contentColor, width: 1.3),
               boxShadow: [
                 BoxShadow(
-                  color: color.withOpacity(0.3),
+                  color: contentColor.withOpacity(0.3),
                   blurRadius: 10,
                   spreadRadius: 1,
                 ),
@@ -231,7 +299,7 @@ class _MoodEchoPageState extends State<MoodEchoPage>
                 Text(
                   "Dear $nickname,",
                   style: TextStyle(
-                    color: color,
+                    color: contentColor,
                     fontFamily: 'EncodeSansExpanded',
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -239,8 +307,7 @@ class _MoodEchoPageState extends State<MoodEchoPage>
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  moodEcho?["summary"] ??
-                      "Your inner world was calm and balanced today.",
+                  summary,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 14,
@@ -250,8 +317,7 @@ class _MoodEchoPageState extends State<MoodEchoPage>
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  moodEcho?["reflection"] ??
-                      "The silence around you whispered softly — listen closely, for it holds the rhythm of your heart.",
+                  reflection,
                   style: const TextStyle(
                     color: Colors.white70,
                     fontSize: 13,
@@ -259,20 +325,16 @@ class _MoodEchoPageState extends State<MoodEchoPage>
                   ),
                 ),
                 const SizedBox(height: 18),
-
-                // 🎵 Musical Tone
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     SvgPicture.string(
-                      '''
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
-                xmlns="http://www.w3.org/2000/svg">
-                <path d="M9 19V6L21 3V16" stroke="${color.value.toRadixString(16).substring(2)}" stroke-width="2"/>
-                <circle cx="6" cy="19" r="2" fill="${color.value.toRadixString(16).substring(2)}"/>
-                <circle cx="18" cy="16" r="2" fill="${color.value.toRadixString(16).substring(2)}"/>
-                </svg>
-                ''',
+                      '''<svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                      xmlns="http://www.w3.org/2000/svg">
+                      <path d="M9 19V6L21 3V16" stroke="${contentColor.value.toRadixString(16).substring(2)}" stroke-width="2"/>
+                      <circle cx="6" cy="19" r="2" fill="${contentColor.value.toRadixString(16).substring(2)}"/>
+                      <circle cx="18" cy="16" r="2" fill="${contentColor.value.toRadixString(16).substring(2)}"/>
+                      </svg>''',
                       width: 24,
                       height: 24,
                     ),
@@ -283,21 +345,19 @@ class _MoodEchoPageState extends State<MoodEchoPage>
                         softWrap: true,
                         overflow: TextOverflow.visible,
                         style: TextStyle(
-                          color: color,
+                          color: contentColor,
                           fontFamily: 'EncodeSansExpanded',
                           fontWeight: FontWeight.bold,
                           fontSize: 13,
                           height: 1.3,
-                        ),
+                        ),  
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 14),
-
-                // 💭 Recommendation
                 Text(
-                  "💭 ${moodEcho?["recommendation"] ?? "Take a breath, and let the music flow through you."}",
+                  "💭 ${echo["recommendation"] ?? ""}",
                   style: const TextStyle(
                     color: Colors.white70,
                     fontFamily: 'RobotoMono',
@@ -305,31 +365,27 @@ class _MoodEchoPageState extends State<MoodEchoPage>
                     height: 1.4,
                   ),
                 ),
-
                 const SizedBox(height: 18),
                 Align(
                   alignment: Alignment.centerRight,
                   child: Text(
                     "— SOL",
                     style: TextStyle(
-                      color: color,
+                      color: contentColor,
                       fontFamily: 'EncodeSansExpanded',
                       fontWeight: FontWeight.bold,
                       fontSize: 15,
                     ),
                   ),
                 ),
-              ],
+              ],  
             ),
           ),
-
           const SizedBox(height: 40),
-
-          // 🔁 Botón de regenerar
           ElevatedButton.icon(
             onPressed: _generating ? null : _regenerate,
             style: ElevatedButton.styleFrom(
-              backgroundColor: color,
+              backgroundColor: contentColor,
               foregroundColor: Colors.black,
               padding:
                   const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
@@ -361,7 +417,6 @@ class _MoodEchoPageState extends State<MoodEchoPage>
     );
   }
 
-  // 💤 Estado vacío
   Widget _buildEmptyState() => Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

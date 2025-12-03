@@ -2,10 +2,29 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../pages/celestial_signal.dart';
+import 'package:flutter/foundation.dart';
+import 'package:hive/hive.dart';
+
+Map<String, dynamic> parseGeminiJson(String rawText) {
+  // 🧹 Limpieza
+  String clean = rawText.trim();
+
+  final match = RegExp(r'\{[\s\S]*\}').firstMatch(clean);
+  if (match != null) clean = match.group(0)!;
+
+  try {
+    return json.decode(clean);
+  } catch (_) {
+    return {
+      "summary": clean.replaceAll(RegExp(r'[\{\}\[\]"]'), '').trim(),
+      "reflection": ""
+    };
+  }
+}
 
 class SolService {
   final String? apiKey = dotenv.env['GEMINI_API_KEY'];
-  final String model = "gemini-2.0-pro-001";
+  final String model = "gemini-2.0-flash";
 
   Future<Map<String, dynamic>> analyzeWeeklyEmotions({
     required List<String> emotions,
@@ -75,22 +94,12 @@ Tu tarea:
     final decoded = json.decode(response.body);
     final rawText = decoded["candidates"]?[0]?["content"]?["parts"]?[0]?["text"] ?? "";
 
-    // 🧹 Limpieza del texto de salida
-    String clean = rawText.trim();
-
-    // Si el texto contiene JSON dentro, extraerlo
-    final match = RegExp(r'\{[\s\S]*\}').firstMatch(clean);
-    if (match != null) clean = match.group(0)!;
-
-    try {
-      return json.decode(clean);
-    } catch (_) {
-      // Si no es JSON válido, mostrar como texto limpio
-      return {
-        "summary": clean.replaceAll(RegExp(r'[\{\}\[\]"]'), '').trim(),
-        "reflection": ""
-      };
-    }
+    // ✅ Usa isolate para parsear
+    final result = await compute<String, Map<String, dynamic>>(
+      parseGeminiJson,
+      rawText,
+    );
+    return result;
   }
 
   Future<String> generateZenMessage(List<String> emotions) async {
@@ -139,6 +148,20 @@ Tu tarea:
     final decoded = json.decode(response.body);
     final raw = decoded["candidates"]?[0]?["content"]?["parts"]?[0]?["text"] ?? "";
     return raw.trim();
+  }
+
+  Future<void> cacheLastSolResponse(Map<String, dynamic> response) async {
+    final box = await Hive.openBox('solCache');
+    await box.put('last_sol_response', response);
+  }
+
+  Future<Map<String, dynamic>?> getLastSolResponse() async {
+    final box = await Hive.openBox('solCache');
+    final cached = box.get('last_sol_response');
+    if (cached != null && cached is Map<String, dynamic>) {
+      return Map<String, dynamic>.from(cached);
+    }
+    return null;
   }
 
 }

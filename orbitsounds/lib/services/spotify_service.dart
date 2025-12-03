@@ -141,11 +141,11 @@ class SpotifyService {
     tracks.shuffle(Random());
 
     /// ⬇️ **AQUÍ ES DONDE SE AGREGA EL PREVIEW DE DEEZER**
-    final enrichedTracks = await Future.wait(
+    /*final enrichedTracks = await Future.wait(
       tracks.map((t) => enrichTrackWithDeezerPreview(t)),
-    );
+    );*/
 
-    final limited = enrichedTracks.take(15).toList();
+    final limited = tracks.take(15).toList();
 
     _memoryCache.put(playlistId, limited);
     await HiveService.saveTracks(playlistId, limited.map((t) => t.toJson()).toList());
@@ -177,9 +177,10 @@ class SpotifyService {
         .toList();
 
     /// ⬇️ También enriquecemos resultados de búsqueda
-    return await Future.wait(
+    /*return await Future.wait(
       results.map((t) => enrichTrackWithDeezerPreview(t)),
-    );
+    );*/
+    return results;
   }
 
   void clearCache() {

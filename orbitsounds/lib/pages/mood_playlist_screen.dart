@@ -1,11 +1,13 @@
 import 'dart:io';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import '../services/ares_playlist_generator_service.dart';
 import '../models/track_model.dart';
 import '../services/hive_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class MoodPlaylistScreen extends StatefulWidget {
   const MoodPlaylistScreen({super.key});
@@ -22,10 +24,12 @@ class _MoodPlaylistScreenState extends State<MoodPlaylistScreen> {
   bool _loading = false;
   double _progress = 0.0;
   List<Track> _tracks = [];
+  final TextEditingController _controller = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    _loadLastMoodInput(); // <- nuevo
 
     _generator.progressStream.listen(
       (p) {
@@ -59,6 +63,16 @@ class _MoodPlaylistScreenState extends State<MoodPlaylistScreen> {
           backgroundColor: Colors.deepPurpleAccent,
         ),
       );
+    }
+  }
+
+  Future<void> _loadLastMoodInput() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedInput = prefs.getString('last_mood_input');
+    if (savedInput != null && mounted) {
+      setState(() {
+       _controller.text = savedInput;  // NUEVO
+      });
     }
   }
 
@@ -100,9 +114,22 @@ class _MoodPlaylistScreenState extends State<MoodPlaylistScreen> {
         },
       );
 
+      if (user != null) {
+        await FirebaseFirestore.instance
+            .collection('mood_playlist_events')
+            .add({
+          'user_id': user.uid,
+          'mode':'automatic',
+          'timestamp': DateTime.now().toIso8601String(),
+        });
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("🎶 Playlist generada con éxito")),
       );
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('last_mood_input', _userInput);
     } on SocketException {
       if (!mounted) return;
 
@@ -203,6 +230,7 @@ class _MoodPlaylistScreenState extends State<MoodPlaylistScreen> {
   @override
   void dispose() {
     _generator.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
@@ -218,6 +246,7 @@ class _MoodPlaylistScreenState extends State<MoodPlaylistScreen> {
         child: Column(
           children: [
             TextField(
+              controller: _controller,
               decoration: const InputDecoration(
                 labelText: "¿Cómo te sientes o cómo te quieres sentir?",
                 border: OutlineInputBorder(),

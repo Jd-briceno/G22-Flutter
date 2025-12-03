@@ -1,4 +1,4 @@
-playlist_model: import 'track_model.dart';
+import 'track_model.dart';
 
 class Playlist {
   final String id;

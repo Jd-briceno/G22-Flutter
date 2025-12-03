@@ -423,18 +423,20 @@ class _TrackDetailScreenState extends State<TrackDetailScreen>
                     PlayPauseButton(
                       isPlaying: player.isPlaying,
                       onTap: () async {
-                        if (track.previewUrl == null || track.previewUrl!.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text("Esta canción no tiene preview disponible."),
-                              backgroundColor: Colors.redAccent,
-                            ),
-                          );
-                          return;
+                        if (player.isPlaying) {
+                          player.pause();
+                        } else {
+                          if (track.previewUrl == null || track.previewUrl!.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Esta canción no tiene preview disponible."),
+                                backgroundColor: Colors.redAccent,
+                              ),
+                            );
+                          }
+                          player.play();
+                          await logEngagementEvent(track.title, widget.genre);
                         }
-
-                        player.isPlaying ? player.pause() : player.play();
-                        await logEngagementEvent(track.title, widget.genre);
 
                         if (_activeSessionId != null) {
                           await _sessionLogger.addTrackToSession(

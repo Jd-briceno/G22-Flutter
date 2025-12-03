@@ -889,6 +889,25 @@ Future<void> _trySyncSessionOnline(String uid, String sessionId, List<String> em
                                 unawaited(_saveEmotionsToFirestore());
 
                                 final sessionId = await _createSessionOnExit();
+                                // === Nuevo evento: resumen de la sesión ===
+                                try {
+                                  final endTime = DateTime.now();
+                                  final durationMs = endTime.difference(_entryTime).inMilliseconds;
+                                  final sessionSummary = {
+                                    "userId": _getCurrentUserId(),
+                                    "sessionId": sessionId ?? 'offline_${DateTime.now().millisecondsSinceEpoch}',
+                                    "emotionCount": _selectedEmotions.length,
+                                    "durationMs": durationMs,
+                                    "completedUnder5s": durationMs < 5000,
+                                    "timestamp": FieldValue.serverTimestamp(),
+                                  };
+
+                                  await FirebaseFirestore.instance.collection("session_summaries").add(sessionSummary);
+
+                                  print("📊 session_summary guardado: $sessionSummary");
+                                } catch (e) {
+                                  print("⚠️ Error al guardar session_summary: $e");
+                                }
 
                                 if (context.mounted) {
                                   Navigator.push(
@@ -1194,9 +1213,22 @@ class _EmotionKnobState extends State<EmotionKnob>
   @override
   void initState() {
     super.initState();
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      FirebaseFirestore.instance.collection('mood_playlist_events').add({
+        'user_id': user.uid,
+        'mode': 'manual',
+        'timestamp': DateTime.now().toIso8601String(),
+      }).then((_) {
+        print("📝 mood_playlist_event (manual) registrado");
+      }).catchError((e) {
+        print("❌ Error guardando evento manual: $e");
+      });
+    }
     _controller =
         AnimationController(vsync: this, duration: const Duration(milliseconds: 400));
   }
+  
 
   @override
   void dispose() {
