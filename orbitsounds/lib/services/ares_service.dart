@@ -1,4 +1,4 @@
-ares_service: import 'dart:convert';
+import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -64,7 +64,7 @@ Canciones que le gustan: ${likedSongs.join(", ")}
 
     String cleanedText = text
         .replaceAll(RegExp(r'json', caseSensitive: false), '')
-        .replaceAll('', '')
+        .replaceAll('```', '')
         .trim();
 
     try {
@@ -158,7 +158,7 @@ Formato:
 
     String cleanedText = text
         .replaceAll(RegExp(r'json', caseSensitive: false), '')
-        .replaceAll('', '')
+        .replaceAll('```', '')
         .trim();
 
     try {

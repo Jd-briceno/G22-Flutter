@@ -1,6 +1,7 @@
-ares_playlist_generator: import 'dart:async';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
+
 import '../models/playlist_model.dart';
 import '../models/track_model.dart';
 import 'ares_service.dart';
@@ -26,6 +27,7 @@ class AresPlaylistGeneratorService {
     required List<String> interests,
   }) async {
     try {
+      // 1) Pedir canciones "ideales" a Ares (Gemini)
       final aiTracks = await _ares.generatePlaylist(
         likedGenres: likedGenres,
         likedSongs: likedSongs,
@@ -34,6 +36,7 @@ class AresPlaylistGeneratorService {
 
       if (aiTracks.isEmpty) return null;
 
+      // 2) Enriquecer con Spotify buscando cada canción
       final futures = aiTracks.map((song) async {
         final query = "${song['title']} ${song['artist']}";
         final results = await _spotify.searchTracks(query);
@@ -52,6 +55,7 @@ class AresPlaylistGeneratorService {
 
       if (finalTracks.isEmpty) return null;
 
+      // 3) Construir playlist final en un isolate
       return await compute(_buildPlaylistInBackground, {
         'id': _uuid.v4(),
         'tracks': finalTracks,
@@ -71,12 +75,12 @@ class AresPlaylistGeneratorService {
   // ======================================================
   Future<Playlist?> generateMoodBasedPlaylist(String moodPrompt) async {
     try {
-      // 🔹 1. Pedir canciones a Gemini según cómo se siente el usuario
+      // 1) Pedir canciones a Ares según el prompt de mood
       final aiTracks = await _ares.generatePlaylistFromMood(moodPrompt);
 
       if (aiTracks.isEmpty) return null;
 
-      // 🔹 2. Buscar canciones reales en Spotify
+      // 2) Buscar canciones reales en Spotify
       final futures = aiTracks.map((song) async {
         final query = "${song['title']} ${song['artist']}";
         final results = await _spotify.searchTracks(query);
@@ -95,12 +99,13 @@ class AresPlaylistGeneratorService {
 
       if (finalTracks.isEmpty) return null;
 
-      // 🔹 3. Crear la playlist final en segundo plano
+      // 3) Crear la playlist final en segundo plano
       return await compute(_buildPlaylistInBackground, {
         'id': _uuid.v4(),
         'tracks': finalTracks,
         'title': "Mood Playlist 🎭",
-        'description': "Playlist generada por Ares según tu estado de ánimo o deseo musical",
+        'description':
+            "Playlist generada por Ares según tu estado de ánimo o deseo musical",
       });
     } catch (e) {
       debugPrint("❌ Error generando playlist por estado de ánimo: $e");
