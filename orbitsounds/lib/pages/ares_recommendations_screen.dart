@@ -107,19 +107,36 @@ class _AresRecommendationsScreenState extends State<AresRecommendationsScreen> {
           .where((g) => g.isNotEmpty)
           .toList();
 
-      final playlist = await _ares.generatePersonalizedPlaylist(
+            final playlist = await _ares.generatePersonalizedPlaylist(
         likedGenres: _likedGenres,
         likedSongs: _likedSongs,
         interests: _interests,
       );
+
+      // 🔒 Manejo seguro del caso en que ARES devuelva null
+      if (playlist == null) {
+        debugPrint("ARES returned null playlist (likely JSON parse error).");
+        if (!mounted) return;
+        setState(() {
+          _playlist = null;
+          _loading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not generate playlist. Please try again.'),
+            backgroundColor: Colors.orangeAccent,
+          ),
+        );
+        return;
+      }
 
       if (!mounted) return;
       setState(() {
         _playlist = playlist;
       });
 
-      // ✅ Guarda cache
-      await _ares.cachePlaylist(playlist!);
+      // ✅ Guarda cache sin usar el operador !
+      await _ares.cachePlaylist(playlist);
 
       await analytics.logEvent(
         name: 'ares_playlist_generated',
@@ -143,10 +160,12 @@ class _AresRecommendationsScreenState extends State<AresRecommendationsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error generating playlist: ${e.toString()}')),
       );
-    } finally {
+        } finally {
       if (!mounted) return;
       setState(() => _loading = false);
-      await _askFeedbackForAres();
+      if (_playlist != null) {
+        await _askFeedbackForAres();
+      }
     }
   }
 
@@ -494,7 +513,7 @@ class _AresRecommendationsScreenState extends State<AresRecommendationsScreen> {
                                       width: 50,
                                       height: 50,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (, _, _) => const Icon(
+                                      errorBuilder: (context, error, stackTrace) => const Icon(
                                         Icons.broken_image,
                                         color: Color(0xFF8C1007),
                                       ),

@@ -98,18 +98,19 @@ class _LibraryScreenState extends State<LibraryScreen>
     await FirebaseAnalytics.instance.logEvent(
       name: 'library_opened',
       parameters: {
-        'user_id': ?user?.uid,
+        'user_id': user?.uid ?? 'anonymous',
         'timestamp': DateTime.now().toIso8601String(),
       },
     );
   }
+
 
   Future<void> _loadAresPlaylists() async {
     setState(() => _loadingAresMixes = true);
     try {
       final mixes = await _ares.generateSmartMixesFromFirestore();
       setState(() => _aresPlaylists = mixes);
-
+  
       // NUEVO → guardar cada playlist en el LRU
       for (var mix in mixes) {
         final playlist = Playlist(
@@ -185,6 +186,44 @@ class _LibraryScreenState extends State<LibraryScreen>
               title: "Lightning Ninja",
               profileImage: "assets/images/Jay.jpg",
               subtitle: "Vinyl Library",
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text("Library", style: _sectionTitleStyle),
+                  Row(
+                    children: [
+                      IconButton(
+                        onPressed: () async {
+                          final newPlaylist = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => AresRecommendationsScreen(),
+                            ),
+                          );
+                          if (newPlaylist != null) {
+                            debugPrint("Nueva playlist creada: ${newPlaylist.title}");
+                          }
+                        },
+                        icon: const HeroIcon(
+                          HeroIcons.plusCircle,
+                          color: Color(0XFFE9E8EE),
+                          size: 28,
+                        ),
+                      ),
+                      const HeroIcon(
+                        HeroIcons.ellipsisVertical,
+                        color: Color(0XFFE9E8EE),
+                        size: 28,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 2)),
